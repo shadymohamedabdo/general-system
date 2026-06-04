@@ -4,7 +4,9 @@ import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import '../constants/app_config.dart';
 import '../constants/constants.dart';
+
 import '../controllers/sales_controller.dart';
 import '../models/cart_item.dart';
 
@@ -17,7 +19,15 @@ class AddSaleScreen extends GetView<SalesController> {
     return Scaffold(
       body: Stack(
         children: [
-          Container(decoration: const BoxDecoration(image: DecorationImage(image: AssetImage(coffeeSalePage), fit: BoxFit.cover))),
+          // 🖼️ الخلفية تقرأ من مسار الصورة في ملف المتغيرات
+          Container(
+              decoration: const BoxDecoration(
+                  image: DecorationImage(
+                      image: AssetImage(AppConfig.salePageBg),
+                      fit: BoxFit.cover
+                  )
+              )
+          ),
           Container(color: Colors.black.withValues(alpha: 0.6)),
           Positioned(top: 50, left: 16, child: IconButton(icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white), onPressed: () => Get.back())),
           Center(
@@ -30,7 +40,7 @@ class AddSaleScreen extends GetView<SalesController> {
                 child: Form(
                   key: controller.formKey,
                   child: Obx(() {
-                    if (controller.isLoading.value) return const Center(child: CircularProgressIndicator(color: Colors.brown));
+                    if (controller.isLoading.value) return Center(child: CircularProgressIndicator(color: AppConfig.primaryColor));
                     return Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -63,22 +73,35 @@ class AddSaleScreen extends GetView<SalesController> {
     );
   }
 
+  // 🏷️ الهيدر يأخذ الاسم والأيقونة والألوان من الإعدادات المركزية
   Widget _buildHeader() => Column(children: [
-    const Icon(Icons.shopping_basket_outlined, size: 50, color: Colors.brown),
+    Icon(AppConfig.mainIcon, size: 50, color: AppConfig.primaryColor),
     const SizedBox(height: 10),
-    const Text('إضافة مبيعات', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+    Text(AppConfig.salesHeaderTitle, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
     Text('الموظف الحالي: ${currentUser['name']}', style: const TextStyle(color: Colors.grey)),
   ]);
 
+  // 🗂️ الدروب داون يقرأ الفئات ديناميكياً من الداتابيز (categoriesList)
   Widget _buildCategoryDropdown() => DropdownButtonFormField<String>(
-    initialValue: controller.selectedCategory.value,
-    decoration: InputDecoration(labelText: 'نوع الصنف', prefixIcon: const Icon(Icons.category_outlined, color: Colors.brown), border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)), filled: true, fillColor: Colors.brown[50]?.withValues(alpha: 0.3)),
-    items: const [DropdownMenuItem(value: 'بن', child: Text('☕ بن (وزن)')), DropdownMenuItem(value: 'مشروب', child: Text('🍹 مشروب (كوب)')), DropdownMenuItem(value: 'أكل سريع / أخرى', child: Text('🍔 بيت الاعشاب  '))],
+    value: controller.selectedCategory.value,
+    decoration: InputDecoration(
+        labelText: 'نوع الصنف',
+        prefixIcon: Icon(Icons.category_outlined, color: AppConfig.primaryColor),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
+        filled: true,
+        fillColor: AppConfig.lightBackground.withValues(alpha: 0.3)
+    ),
+    items: controller.categoriesList.map((category) =>
+        DropdownMenuItem<String>(
+            value: category,
+            child: Text(category)
+        )
+    ).toList(),
     onChanged: controller.onCategoryChanged,
   );
 
   Widget _buildSearchBar() => TextFormField(
-    decoration: InputDecoration(hintText: '🔍 ابحث عن منتج هنا...', prefixIcon: const Icon(Icons.search, color: Colors.brown), filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide(color: Colors.brown.shade200)), contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12)),
+    decoration: InputDecoration(hintText: '🔍 ابحث عن منتج هنا...', prefixIcon: Icon(Icons.search, color: AppConfig.primaryColor), filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide(color: AppConfig.primaryColor.withValues(alpha: 0.4))), contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12)),
     onChanged: (value) => controller.searchQuery.value = value,
   );
 
@@ -94,8 +117,8 @@ class AddSaleScreen extends GetView<SalesController> {
     final hasValidValue = controller.availableProducts.any((p) => p.id == currentValue);
 
     return DropdownButtonFormField<int>(
-      initialValue: hasValidValue ? currentValue : null,
-      decoration: InputDecoration(labelText: 'المنتج المتاح', prefixIcon: const Icon(Icons.inventory_2_outlined, color: Colors.brown), border: OutlineInputBorder(borderRadius: BorderRadius.circular(15))),
+      value: hasValidValue ? currentValue : null,
+      decoration: InputDecoration(labelText: 'المنتج المتاح', prefixIcon: Icon(Icons.inventory_2_outlined, color: AppConfig.primaryColor), border: OutlineInputBorder(borderRadius: BorderRadius.circular(15))),
       items: controller.availableProducts.map((p) {
         double remaining = controller.productRemainingMap[p.id] ?? 0;
         return DropdownMenuItem<int>(
@@ -113,12 +136,15 @@ class AddSaleScreen extends GetView<SalesController> {
     );
   }
 
+  // ⚖️ قسم الكمية يفحص التفعيل التلقائي لنظام الأوزان والموازين
   Widget _buildQuantitySection() {
-    final isCoffee = controller.selectedCategory.value == 'بن';
-    if (isCoffee) {
+    // التحقق بناءً على ميزة الأوزان في AppConfig ووحدة المنتج المختار الحالي
+    final useWeights = AppConfig.enableWeightSystem && (controller.unitLabel.value == 'كيلو' || controller.selectedCategory.value == 'بن');
+
+    if (useWeights) {
       return Column(children: [
         DropdownButtonFormField<double>(
-          initialValue: [0.125, 0.25, 0.5, 1.0].contains(controller.quantity.value) ? controller.quantity.value : null,
+          value: [0.125, 0.25, 0.5, 1.0].contains(controller.quantity.value) ? controller.quantity.value : null,
           decoration: const InputDecoration(labelText: 'أوزان جاهزة', border: OutlineInputBorder()),
           items: const [DropdownMenuItem(value: 0.125, child: Text('ثمن كيلو')), DropdownMenuItem(value: 0.25, child: Text('ربع كيلو')), DropdownMenuItem(value: 0.5, child: Text('نصف كيلو')), DropdownMenuItem(value: 1.0, child: Text('كيلو'))],
           onChanged: (v) { if (v != null) { controller.quantity.value = v; controller.amount.value = null; controller.amountCtrl.clear(); } },
@@ -128,7 +154,13 @@ class AddSaleScreen extends GetView<SalesController> {
         Obx(() => controller.computedWeight.value > 0 ? Text('الوزن المحسوب: ${controller.computedWeight.value.toStringAsFixed(3)} كجم', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)) : const SizedBox()),
       ]);
     }
-    return TextFormField(controller: controller.qtyCtrl, decoration: const InputDecoration(labelText: 'الكمية', border: OutlineInputBorder()), keyboardType: TextInputType.number, onChanged: (v) => controller.quantity.value = double.tryParse(v) ?? 1.0);
+
+    return TextFormField(
+        controller: controller.qtyCtrl,
+        decoration: InputDecoration(labelText: 'الكمية (${controller.unitLabel.value})', border: const OutlineInputBorder()),
+        keyboardType: AppConfig.allowDecimalQuantity ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.number,
+        onChanged: (v) => controller.quantity.value = double.tryParse(v) ?? 1.0
+    );
   }
 
   Widget _buildPriceCard() => Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: Colors.green[700], borderRadius: BorderRadius.circular(15)), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('إجمالي الصنف الحالي:', style: TextStyle(color: Colors.white, fontSize: 16)), Obx(() => Text('${controller.currentTotal.toStringAsFixed(2)} ج.م', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)))]));
@@ -147,7 +179,7 @@ class AddSaleScreen extends GetView<SalesController> {
             return ListTile(dense: true, contentPadding: EdgeInsets.zero, title: Text(item.productName), subtitle: Text('${item.quantity.toStringAsFixed(2)} × ${item.unitPrice.toStringAsFixed(2)} ج.م'), trailing: Row(mainAxisSize: MainAxisSize.min, children: [Text('${item.total.toStringAsFixed(2)} ج.م'), IconButton(icon: const Icon(Icons.remove_circle_outline, color: Colors.red), onPressed: () => controller.removeCartItem(index))]));
           }),
           const Divider(),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('الإجمالي:', style: TextStyle(fontWeight: FontWeight.bold)), Text('${controller.orderTotal.toStringAsFixed(2)} ج.م', style: const TextStyle(color: Colors.brown, fontWeight: FontWeight.bold))]),
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('الإجمالي:', style: TextStyle(fontWeight: FontWeight.bold)), Text('${controller.orderTotal.toStringAsFixed(2)} ج.م', style: TextStyle(color: AppConfig.primaryColor, fontWeight: FontWeight.bold))]),
         ]),
       );
     });
@@ -161,7 +193,7 @@ class AddSaleScreen extends GetView<SalesController> {
           label: Text('${controller.cartItems.length}'),
           isLabelVisible: controller.cartItems.isNotEmpty,
           child: IconButton(
-            icon: const Icon(Icons.shopping_cart_outlined, color: Colors.brown, size: 32),
+            icon: Icon(Icons.shopping_cart_outlined, color: AppConfig.primaryColor, size: 32),
             onPressed: controller.addToCart,
             tooltip: 'إضافة المنتج الحالي للسلة',
           ),
@@ -206,7 +238,6 @@ class AddSaleScreen extends GetView<SalesController> {
                   totalToPrint = controller.currentTotal;
                   success = await controller.saveSingleProduct(currentUser['id']);
                 } else {
-                  // 🔥 استخدام الـ Snackbar التحذيري الخاص بك هنا
                   AppSnackbar.warning("لا توجد فاتورة للطباعة");
                   return;
                 }
@@ -215,14 +246,13 @@ class AddSaleScreen extends GetView<SalesController> {
                 await _printInvoice(itemsToPrint, totalToPrint);
               }
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.brown[700]),
+            style: ElevatedButton.styleFrom(backgroundColor: AppConfig.primaryColorDark),
             child: const Text('حفظ وطباعة 🖨️', style: TextStyle(color: Colors.white)),
           ),
         ),
       ],
     );
   }
-
 
   Future<void> _printInvoice(List<CartItem> items, double total) async {
     final pdf = pw.Document();
@@ -242,7 +272,7 @@ class AddSaleScreen extends GetView<SalesController> {
             children: [
               pw.Center(
                 child: pw.Text(
-                  'محل بن الشيخ',
+                  AppConfig.businessName, // 👈 طباعة اسم النشاط ديناميكياً
                   style: pw.TextStyle(font: arabicFont, fontSize: 18, fontWeight: pw.FontWeight.bold),
                 ),
               ),
@@ -260,7 +290,6 @@ class AddSaleScreen extends GetView<SalesController> {
               pw.Text('الكاشير: ${currentUser['name']}', style: pw.TextStyle(font: arabicFont, fontSize: 10)),
               pw.Divider(thickness: 1),
 
-              // المنتجات
               ...items.map((item) {
                 final description = _formatItemDescription(item);
                 return pw.Padding(
@@ -305,22 +334,24 @@ class AddSaleScreen extends GetView<SalesController> {
     }
   }
 
-// دالة التنسيق الذكية (محافظ عليها)
+  // 📝 تنسيق طباعة العناصر بطريقة مرنة تعتمد على الوحدة المتاحة في السلة وليس الفئة المكتوبة نصاً
   String _formatItemDescription(CartItem item) {
     final name = item.productName.replaceAll('بن', '').trim();
     final qty = item.quantity;
     final totalStr = item.total.toStringAsFixed(0);
 
-    if (item.category == 'بن') {
+    // لو المادة المبيعة وحدتها كيلو (زي البن أو السوبرماركت المفتوح)
+    if (item.category == 'بن' || item.unitPrice > 0 && qty < 1.0 && AppConfig.enableWeightSystem) {
       if ((qty - 0.125).abs() < 0.01) return "ثمن $name = $totalStr ج";
       if ((qty - 0.25).abs() < 0.01) return "ربع $name = $totalStr ج";
       if ((qty - 0.5).abs() < 0.01) return "نصف $name = $totalStr ج";
       if ((qty - 1.0).abs() < 0.01) return "كيلو $name = $totalStr ج";
       return "بـ $totalStr ج $name";
     } else {
-      final unit = item.category == 'مشروب' ? 'كوب' : 'قطعة';
+      // طباعة مرنة لأي وحدة ديناميكية تانية: علبة، شريط، قطعة، كوب
+      final currentUnit = item.category == 'مشروب' ? 'كوب' : 'قطعة';
       final qtyStr = qty % 1 == 0 ? qty.toInt().toString() : qty.toStringAsFixed(1);
-      return "$qtyStr $unit $name = $totalStr ج";
+      return "$qtyStr $currentUnit $name = $totalStr ج";
     }
   }
 }

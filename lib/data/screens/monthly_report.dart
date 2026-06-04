@@ -1,29 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../constants/app_config.dart';
 import '../constants/constants.dart';
 import '../controllers/monthly_report_controller.dart';
 
-/// الشاشة الرئيسية لعرض التقرير الشهري المتقدم وإدارة المشتريات والمصروفات
 class MonthlyReportScreen extends GetView<MonthlyReportController> {
   const MonthlyReportScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // 🔥 تعريف الـ ScrollController هنا وربطه بالشاشة الأساسية هو الحل الوحيد للـ Pagination في الموبايل والـ Desktop معاً
     final ScrollController mainScrollController = ScrollController();
 
     mainScrollController.addListener(() {
       if (mainScrollController.position.pixels >=
           mainScrollController.position.maxScrollExtent - 200) {
-        controller.loadNextPage(); // استدعاء الصفحة التالية عند الاقتراب من النهاية
+        controller.loadNextPage();
       }
     });
 
     return Scaffold(
-      backgroundColor: Colors.brown[50],
+      backgroundColor: const Color(0xFFF8F5F2),
       appBar: AppBar(
-        title: const Text('التقرير الشهري المتقدم'),
-        backgroundColor: Colors.brown[700],
+        title: const Text('التقرير الشهري المتقدم', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: AppConfig.primaryColor,
         foregroundColor: Colors.white,
         centerTitle: true,
         actions: [
@@ -35,11 +34,11 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
         ],
       ),
       body: Obx(() {
-        if (controller.isLoading.value) return const Center(child: CircularProgressIndicator(color: Colors.brown));
+        if (controller.isLoading.value) return Center(child: CircularProgressIndicator(color: AppConfig.primaryColor));
         if (controller.errorMessage.isNotEmpty) return _buildError();
 
         return SingleChildScrollView(
-          controller: mainScrollController, // ✨ الربط السليم هنا يمنع الـ Infinite Loop والتعليق
+          controller: mainScrollController,
           physics: const BouncingScrollPhysics(),
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -49,9 +48,9 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
               if (controller.showAddPurchaseForm.value)
                 _buildAddPurchaseForm(),
               const SizedBox(height: 16),
-              const _PaginatedTable(), // عرض الجدول (تم تنظيفه وتبسيطه)
+              const _PaginatedTable(),
               const SizedBox(height: 16),
-              _buildProfitCard(), // الكارد المنفصل تماماً
+              _buildProfitCard(),
             ],
           ),
         );
@@ -72,7 +71,7 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
             ),
             child: DropdownButton<int>(
               value: controller.selectedMonth.value,
-              dropdownColor: Colors.brown[700],
+              dropdownColor: AppConfig.primaryColor,
               style: const TextStyle(color: Colors.white),
               underline: const SizedBox(),
               icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
@@ -94,7 +93,7 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
             ),
             child: DropdownButton<int>(
               value: controller.selectedYear.value,
-              dropdownColor: Colors.brown[700],
+              dropdownColor: AppConfig.primaryColor,
               style: const TextStyle(color: Colors.white),
               underline: const SizedBox(),
               icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
@@ -129,7 +128,7 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.calendar_month, color: Colors.brown),
+          Icon(Icons.calendar_month, color: AppConfig.primaryColor),
           const SizedBox(width: 8),
           Obx(() => Text(
             "تقرير شهر ${_getMonthName(controller.selectedMonth.value)} ${controller.selectedYear.value}",
@@ -148,7 +147,7 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           gradient: LinearGradient(
-            colors: [Colors.white, Colors.brown[50]!],
+            colors: [Colors.white, const Color(0xFFFDFBF7)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -164,13 +163,12 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
                 controller: controller.productNameCtrl,
                 label: 'اسم المنتج المشتري / المصروف',
                 icon: Icons.inventory,
-                hint: 'مثال:  بن يمني',
+                hint: 'مثال: بن يمني سادة',
               ),
               const SizedBox(height: 12),
               _buildCategoryDropdown(),
               const SizedBox(height: 12),
 
-              // 1. حقل إدخال الكمية
               _buildInputField(
                 controller: controller.quantityCtrl,
                 label: 'الكمية',
@@ -179,27 +177,25 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
               ),
               const SizedBox(height: 12),
-              _buildUnitDisplay(),
+              _buildUnitDropdown(), // 👈 استبدال حقل العرض بـ Dropdown ديناميكي آمن
               const SizedBox(height: 12),
 
-              // 2. 🔥 الحقل الجديد: سعر الكيلو أو سعر الوحدة الواحدة
               _buildInputField(
-                controller: controller.costPerUnitCtrl, // الكنترولر الجديد
-                label: 'سعر الكيلو / الوحدة (ج.م)',
+                controller: controller.costPerUnitCtrl,
+                label: 'سعر الوحدة / الكيلو (ج.م)',
                 icon: Icons.price_change_outlined,
                 hint: 'مثال: 50',
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
               ),
               const SizedBox(height: 12),
 
-              // 3. ✨ حقل التكلفة الإجمالية: أصبح للقراءة فقط ويحسب تلقائياً
               _buildInputField(
-                controller: controller.totalCostCtrl, // الكنترولر الإجمالي الاوتوماتيكي
+                controller: controller.totalCostCtrl,
                 label: 'التكلفة الإجمالية التلقائية (ج.م)',
                 icon: Icons.attach_money,
                 hint: 'ستحسب تلقائياً...',
-                readOnly: true, // 🔒 قفل الحقل لمنع تعديله يدوياً بالاخطاء
-                fillColor: Colors.grey[100], // تمييزه بصرياً للمستخدم
+                readOnly: true,
+                fillColor: Colors.grey[100],
               ),
               const SizedBox(height: 24),
               _buildFormButtons(),
@@ -209,16 +205,17 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
       ),
     );
   }
+
   Widget _buildFormHeader() {
     return Row(
       children: [
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Colors.brown[100],
+            color: AppConfig.primaryColor.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: const Icon(Icons.shopping_cart, color: Colors.brown),
+          child: Icon(Icons.shopping_cart, color: AppConfig.primaryColor),
         ),
         const SizedBox(width: 12),
         const Text(
@@ -233,7 +230,7 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
     return Obx(() => Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('الفئة', style: TextStyle(fontWeight: FontWeight.w500)),
+        const Text('الفئة داخل المنيو', style: TextStyle(fontWeight: FontWeight.w500)),
         const SizedBox(height: 8),
         Container(
           decoration: BoxDecoration(
@@ -246,19 +243,12 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
               isExpanded: true,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               items: controller.categories.map((cat) {
-                IconData icon;
-                if (cat == 'بن') {
-                  icon = Icons.grain;
-                } else if (cat == 'مشروب') {
-                  icon = Icons.local_cafe;
-                } else {
-                  icon = Icons.fastfood;
-                }
+                IconData icon = cat == 'بن' ? Icons.grain : (cat == 'مشروب' ? Icons.local_cafe : Icons.category);
                 return DropdownMenuItem(
                   value: cat,
                   child: Row(
                     children: [
-                      Icon(icon, size: 18, color: Colors.brown),
+                      Icon(icon, size: 18, color: AppConfig.primaryColor),
                       const SizedBox(width: 8),
                       Text(cat),
                     ],
@@ -275,26 +265,41 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
     ));
   }
 
-  Widget _buildUnitDisplay() {
-    return Obx(() => Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.brown[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.brown[200]!),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.scale, size: 18, color: Colors.brown),
-          const SizedBox(width: 8),
-          const Text('الوحدة:'),
-          const SizedBox(width: 8),
-          Text(
-            controller.selectedUnit.value,
-            style: const TextStyle(fontWeight: FontWeight.bold),
+  Widget _buildUnitDropdown() {
+    return Obx(() => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('وحدة القياس للمصروف', style: TextStyle(fontWeight: FontWeight.w500)),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey[300]!),
+            borderRadius: BorderRadius.circular(12),
           ),
-        ],
-      ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: controller.selectedUnit.value,
+              isExpanded: true,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              items: controller.unitsList.map((unit) {
+                return DropdownMenuItem(
+                  value: unit,
+                  child: Row(
+                    children: [
+                      Icon(Icons.scale, size: 18, color: AppConfig.primaryColor),
+                      const SizedBox(width: 8),
+                      Text(unit),
+                    ],
+                  ),
+                );
+              }).toList(),
+              onChanged: (value) {
+                if (value != null) controller.selectedUnit.value = value;
+              },
+            ),
+          ),
+        ),
+      ],
     ));
   }
 
@@ -336,29 +341,28 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
     required IconData icon,
     String hint = '',
     TextInputType keyboardType = TextInputType.text,
-    bool readOnly = false, // القيمة الافتراضية قابلة للكتابة
+    bool readOnly = false,
     Color? fillColor,
   }) {
     return TextField(
       controller: controller,
       keyboardType: keyboardType,
-      readOnly: readOnly, // تفعيل خاصية القراءة فقط
+      readOnly: readOnly,
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
-        prefixIcon: Icon(icon, color: Colors.brown),
+        prefixIcon: Icon(icon, color: AppConfig.primaryColor),
         filled: fillColor != null,
         fillColor: fillColor,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.brown[400]!),
+          borderSide: BorderSide(color: AppConfig.primaryColor),
         ),
       ),
     );
   }
 
-  // 🔥 تعديل الكارد ليفصل المشتريات لوحدها والمصروفات لوحدها زي ما كانت بالظبط
   Widget _buildProfitCard() {
     final isProfit = controller.netProfit.value >= 0;
     return Card(
@@ -386,7 +390,6 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
             ),
             const Divider(color: Colors.white54),
 
-            // سطر المبيعات والمشتريات
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -397,15 +400,13 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
               ],
             ),
             const SizedBox(height: 6),
-
-            // 🔥 إضافة سطر مستقل لعرض إجمالي المصروفات اليدوية لوحدها لضبط الدنيا بالكامل
             Row(
               mainAxisAlignment: MainAxisAlignment.start,
               children: [
-                Obx(() => Text(
+                Text(
                   'إجمالي المصروفات الأخرى: ${controller.totalExpenses.value.toStringAsFixed(2)} ج.م',
                   style: const TextStyle(color: Colors.white70),
-                )),
+                ),
               ],
             ),
           ],
@@ -423,15 +424,14 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
         const SizedBox(height: 16),
         ElevatedButton(
           onPressed: controller.loadReport,
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.brown),
-          child: const Text("إعادة المحاولة"),
+          style: ElevatedButton.styleFrom(backgroundColor: AppConfig.primaryColor),
+          child: const Text("إعادة المحاولة", style: TextStyle(color: Colors.white)),
         ),
       ],
     ),
   );
 }
 
-// ✅ إرجاع الـ Widget إلى Stateless وتطهيره من الـ ScrollController الداخلي المسبب للتعليق
 class _PaginatedTable extends StatelessWidget {
   const _PaginatedTable();
 
@@ -479,7 +479,7 @@ class _PaginatedTable extends StatelessWidget {
           DataCell(Text('${row['sold_quantity']} ${row['unit'] ?? ''}')),
           DataCell(Text('${(row['sales_amount'] as num).toStringAsFixed(2)} ج.م')),
           DataCell(Text('${row['purchased_quantity']} ${row['unit'] ?? ''}')),
-          DataCell(Text('${(row['purchase_cost'] as num).toStringAsFixed(2)} ج.م')),
+          DataCell(Text('${(row['purchase_cost'] as num).toStringAsFixed(2)} ج.m')),
           DataCell(
             Text(
               '${profit.toStringAsFixed(2)} ج.م',
@@ -501,7 +501,7 @@ class _PaginatedTable extends StatelessWidget {
       child: Column(
         children: [
           DataTable(
-            headingRowColor: WidgetStateProperty.all(Colors.brown[400]),
+            headingRowColor: WidgetStateProperty.all(AppConfig.primaryColor.withValues(alpha: 0.8)),
             columnSpacing: 25,
             columns: const [
               DataColumn(label: Text('الصنف', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
@@ -514,11 +514,10 @@ class _PaginatedTable extends StatelessWidget {
             ],
             rows: rows,
           ),
-          // الـ Loading الأسفل للـ Desktop يشتغل بناء على الكنترولر الأساسي
           if (controller.isLoadingMore.value)
-            const Padding(
-              padding: EdgeInsets.all(8),
-              child: CircularProgressIndicator(color: Colors.brown),
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: CircularProgressIndicator(color: AppConfig.primaryColor),
             ),
         ],
       ),
@@ -531,7 +530,7 @@ class _PaginatedTable extends StatelessWidget {
       children: [
         ListView.builder(
           shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(), // ✨ يعتمد كلياً على سكرول الشاشة الأب لمنع التعليق واللوب
+          physics: const NeverScrollableScrollPhysics(),
           itemCount: dataLength,
           itemBuilder: (context, index) {
             final row = controller.tableData[index];
@@ -548,7 +547,7 @@ class _PaginatedTable extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(row['product_name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.brown)),
+                        Text(row['product_name'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppConfig.primaryColor)),
                         IconButton(
                           icon: const Icon(Icons.delete, color: Colors.red, size: 18),
                           onPressed: () => _showDeleteDialog(controller, row['product_name']),
@@ -566,11 +565,10 @@ class _PaginatedTable extends StatelessWidget {
             );
           },
         ),
-        // 🔥 مؤشر اللودنج للموبايل يظهر هنا بالأسفل بشكل طبيعي جداً ويفصل فور انتهاء الصفحات الحقيقية
         if (controller.isLoadingMore.value)
-          const Padding(
-            padding: EdgeInsets.all(12),
-            child: Center(child: CircularProgressIndicator(color: Colors.brown)),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Center(child: CircularProgressIndicator(color: AppConfig.primaryColor)),
           ),
       ],
     );

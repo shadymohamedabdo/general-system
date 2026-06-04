@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'package:path/path.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import 'package:device_info_plus/device_info_plus.dart'; // 👈 إضافة حزمة الهاردوير الفريدة للويندوز
+import 'package:device_info_plus/device_info_plus.dart';
 
-/// كلاس مسؤول عن إدارة قاعدة البيانات بالكامل مع الحماية الذكية ضد النقل
+/// كلاس مسؤول عن إدارة قاعدة البيانات بالكامل مع دعم الأنشطة الديناميكية والأمان
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _db;
@@ -36,7 +36,7 @@ class DatabaseHelper {
     return await databaseFactoryFfi.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 15, // 🛠️ تم الرفع إلى 15 لدعم القفل الصخري وسيريال بوردة الجهاز الفريد
+        version: 16, // 🛠️ تم الرفع إلى 16 لدعم جداول الأقسام والوحدات الديناميكية
         onCreate: _createDB,
         onUpgrade: _onUpgrade,
         onConfigure: _onConfigure,
@@ -61,7 +61,7 @@ class DatabaseHelper {
   }
 
   Future<void> _createDB(Database db, int version) async {
-    // جدول المستخدمين
+    // 1️⃣ جدول المستخدمين
     await db.execute('''
       CREATE TABLE users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,20 +73,36 @@ class DatabaseHelper {
       )
     ''');
 
-    // جدول المنتجات المضاف إليه عمود initial_stock
+    // 2️⃣ جدول الأقسام الديناميكية (Categories)
+    await db.execute('''
+      CREATE TABLE categories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE
+      )
+    ''');
+
+    // 3️⃣ جدول الوحدات الديناميكية (Units)
+    await db.execute('''
+      CREATE TABLE units (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE
+      )
+    ''');
+
+    // 4️⃣ جدول المنتجات المطور
     await db.execute('''
       CREATE TABLE products (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT,
-        category TEXT,
-        unit TEXT,
+        category TEXT, -- هيفضل نص عشان يتوافق مع كودك الحالي بس قيمته هتيجي من جدول الـ categories
+        unit TEXT,     -- هيفضل نص وقيمته هتيجي من جدول الـ units
         price REAL,
         cost_price REAL DEFAULT 0,
         initial_stock REAL DEFAULT 0.0
       )
     ''');
 
-    // جدول الشيفتات
+    // 5️⃣ جدول الشيفتات
     await db.execute('''
       CREATE TABLE shifts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -99,7 +115,7 @@ class DatabaseHelper {
       )
     ''');
 
-    // جدول المبيعات
+    // 6️⃣ جدول المبيعات
     await db.execute('''
       CREATE TABLE sales (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -117,7 +133,7 @@ class DatabaseHelper {
       )
     ''');
 
-    // جدول المشتريات
+    // 7️⃣ جدول المشتريات
     await db.execute('''
       CREATE TABLE purchases (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -130,7 +146,7 @@ class DatabaseHelper {
       )
     ''');
 
-    // جدول المصروفات المطور
+    // 8️⃣ جدول المصروفات
     await db.execute('''
       CREATE TABLE expenses (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -145,14 +161,14 @@ class DatabaseHelper {
       )
     ''');
 
-    // 🛠️ جدول الأمان المحدث المضاف إليه عمود device_serial لربط الهاردوير
+    // 9️⃣ جدول الأمان المحدث لربط الهاردوير
     await db.execute('''
       CREATE TABLE app_security (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         trial_start TEXT,
         last_opened TEXT,
         is_activated INTEGER,
-        device_serial TEXT DEFAULT '' -- 👈 العمود الجديد لمنع سرقة ونقل البيانات لفرع تانى
+        device_serial TEXT DEFAULT ''
       )
     ''');
 
@@ -165,12 +181,27 @@ class DatabaseHelper {
 
     await _createDefaultAdmin(db);
     await _initSecurityTable(db);
+    await _insertDefaultCategoriesAndUnits(db); // 👈 بذر البيانات الافتراضية
+  }
+
+  // دالة بذر البيانات المبدئية عشان السيستم ميبقاش فاضي أول ما يفتح
+  Future<void> _insertDefaultCategoriesAndUnits(Database db) async {
+    // إضافة أقسام افتراضية تناسب الوضع الحالي (كافيه)
+    List<String> defaultCategories = ['بن', 'مشروب', 'أكل سريع / أخرى'];
+    for (var cat in defaultCategories) {
+      await db.insert('categories', {'name': cat}, conflictAlgorithm: ConflictAlgorithm.ignore);
+    }
+
+    // إضافة وحدات افتراضية
+    List<String> defaultUnits = ['كيلو', 'كوب', 'قطعة', 'علبة', 'شريط'];
+    for (var unit in defaultUnits) {
+      await db.insert('units', {'name': unit}, conflictAlgorithm: ConflictAlgorithm.ignore);
+    }
   }
 
   // 🧹 دالة تصفير النظام بالكامل
   Future<void> clearAllTransactionsData() async {
     final db = await database;
-
     await db.transaction((txn) async {
       await txn.delete('sales');
       await txn.delete('purchases');
@@ -178,7 +209,6 @@ class DatabaseHelper {
       await txn.delete('shifts');
       await txn.delete('products');
     });
-
     notifySalesChanged();
     notifyShiftsChanged();
   }
@@ -189,7 +219,6 @@ class DatabaseHelper {
       await db.execute("UPDATE shifts SET start_time = NULL WHERE start_time NOT LIKE '202%'");
       await db.execute("UPDATE shifts SET end_time = NULL WHERE end_time NOT LIKE '202%' AND is_open = 0");
     }
-
     if (oldVersion < 10) {
       await db.execute('''
         CREATE TABLE purchases (
@@ -203,7 +232,6 @@ class DatabaseHelper {
         )
       ''');
     }
-
     if (oldVersion < 11) {
       await db.execute('''
         CREATE TABLE app_security (
@@ -215,7 +243,6 @@ class DatabaseHelper {
       ''');
       await _initSecurityTable(db);
     }
-
     if (oldVersion < 13) {
       await db.execute('DROP TABLE IF EXISTS expenses');
       await db.execute('''
@@ -233,22 +260,35 @@ class DatabaseHelper {
       ''');
       await db.execute('CREATE INDEX IF NOT EXISTS idx_expenses_shift_id ON expenses(shift_id)');
     }
-
     if (oldVersion < 14) {
       try {
         await db.execute("ALTER TABLE products ADD COLUMN initial_stock REAL DEFAULT 0.0");
-      } catch (e) {
-        // تفادي الكراش لو العمود موجود بالفعل
-      }
+      } catch (e) {}
     }
-
-    // 🆕 التحديث الجديد للإصدار 15 لزرع عمود ربط السيريال في حالة الأجهزة الحالية المفعّلة
     if (oldVersion < 15) {
       try {
         await db.execute("ALTER TABLE app_security ADD COLUMN device_serial TEXT DEFAULT ''");
-      } catch (e) {
-        // تفادي الكراش لو العمود موجود بالفعل
-      }
+      } catch (e) {}
+    }
+
+    // 🆕 الترقية للإصدار 16 (إنشاء الجداول الجديدة في الأجهزة الحالية دون مسح أي شيء)
+    if (oldVersion < 16) {
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS units (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE
+          )
+        ''');
+        // ملء الجداول بالبيانات الافتراضية للعميل القديم عشان برنامجه ميعطلش
+        await _insertDefaultCategoriesAndUnits(db);
+      } catch (e) {}
     }
   }
 
@@ -273,17 +313,15 @@ class DatabaseHelper {
         'trial_start': nowStr,
         'last_opened': nowStr,
         'is_activated': 0,
-        'device_serial': '', // يترك فارغًا حتى وقت التنشيط الفعلي بكود الماجيك
+        'device_serial': '',
       });
     }
   }
 
-  /// 🛠️ دالة جلب السيريال الفريد للـ Motherboard وجهاز الويندوز برمجياً
   Future<String> getWindowsSerial() async {
     try {
       final deviceInfo = DeviceInfoPlugin();
       final windowsInfo = await deviceInfo.windowsInfo;
-      // استخراج الـ deviceId الفريد للنسخة والمكونات وإزالة الأقواس لتنظيف النص
       String serial = windowsInfo.deviceId.replaceAll('{', '').replaceAll('}', '').trim();
       return serial.isNotEmpty ? serial : "WINDOWS-UNKNOWN-PC";
     } catch (e) {
@@ -302,14 +340,13 @@ class DatabaseHelper {
     await db.update('app_security', {'last_opened': nowStr}, where: 'id = ?', whereArgs: [1]);
   }
 
-  /// 🛠️ تحديث دالة التفعيل لتأخذ وتغلق نظام التفعيل على سيريال الماذر بورد الحالي فقط
   Future<void> activateSystemFull(String currentSerial) async {
     final db = await database;
     await db.update(
         'app_security',
         {
           'is_activated': 1,
-          'device_serial': currentSerial // قفل قاعدة البيانات على البوردة دي رسميًا
+          'device_serial': currentSerial
         },
         where: 'id = ?',
         whereArgs: [1]

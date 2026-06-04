@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../constants/app_config.dart';
 import '../constants/constants.dart';
 import '../database_helper.dart';
 import '../models/cart_item.dart';
@@ -19,13 +20,17 @@ class SalesController extends GetxController {
   var isLoading = true.obs;
   var isSaving = false.obs;
 
+  // 🆕 لست الفئات والوحدات الديناميكية القادمة من قاعدة البيانات
+  var categoriesList = <String>[].obs;
+  var unitsList = <String>[].obs;
+
   var selectedCategory = RxnString();
   var selectedProductId = RxnInt();
 
   var quantity = 1.0.obs;
   var unitPrice = 0.0.obs;
   var amount = RxnDouble();
-  var unitLabel = "وحدة".obs;
+  var unitLabel = "وحدة".obs; // 👈 لعرض وحدة المنتج المختار ديناميكياً
   var computedWeight = 0.0.obs;
   var productRemainingMap = <int, double>{}.obs;
 
@@ -57,18 +62,28 @@ class SalesController extends GetxController {
     isLoading(true);
     try {
       final db = await dbHelper.database;
+
+      // 📥 1. جلب الفئات والوحدات المسجلة ديناميكياً من الجداول الجديدة
+      final catData = await db.query('categories');
+      final unitData = await db.query('units');
+
+      categoriesList.assignAll(catData.map((e) => e['name'] as String).toList());
+      unitsList.assignAll(unitData.map((e) => e['name'] as String).toList());
+
+      // 📥 2. جلب المنتجات كالمعتاد
       final result = await db.query('products');
       products.assignAll(result.map((e) => Product.fromMap(e)).toList());
+
       await _loadRemainingBalances();
       _filterProducts(); // تشغيل الفلترة المبدئية
     } catch (e) {
-      AppSnackbar.error("خطأ في تحميل المنتجات: $e");
+      AppSnackbar.error("خطأ في تحميل المنتجات والبيانات الديناميكية: $e");
     } finally {
       isLoading(false);
     }
   }
 
-  // 🧠 دالة حساب الأرصدة بعد تطبيق اقتراحك الذكي بالملي
+  // 🧠 حساب الأرصدة ديناميكياً بدون إجبار السيستم على كلمة "مشروب" ثابتة
   Future<void> _loadRemainingBalances() async {
     try {
       final now = DateTime.now();
@@ -82,15 +97,15 @@ class SalesController extends GetxController {
       }
 
       for (var product in products) {
-        if (product.category == 'مشروب') {
+        // ⚡ لو المنتج ليس له رصيد مبيعات مسبق أو يعتبر خدمة مفتوحة (مثل الأكواب المفتوحة بالكافيه)
+        // بنعطيه رصيد افتراضي كبير، عدا ذلك بنحسب الوارد - الصادر بدقة
+        if (product.unit != 'كيلو' && product.category == 'مشروب') {
           productRemainingMap[product.id!] = 999.0;
         } else {
           String productKey = product.name.trim().toLowerCase();
           double purchasedQty = purchasedQuantityMap[productKey] ?? 0.0;
 
           double totalIncoming = 0.0;
-
-          // نفس المنطق: الأولوية للمشتريات
           if (purchasedQty > 0) {
             totalIncoming = purchasedQty;
           } else {
@@ -107,16 +122,12 @@ class SalesController extends GetxController {
       AppSnackbar.error("خطأ في حساب الأرصدة: $e");
     }
   }
-  // 🔍 دالة الفلترة الذكية المربوطة بالبحث والنوع والمخزن معاً
+
+  // 🔍 الفلترة الذكية
   void _filterProducts() {
     var filtered = products.where((p) {
-      // 1. تحقق من توافق القسم
       bool matchesCategory = selectedCategory.value == null || p.category == selectedCategory.value;
-
-      // 2. تحقق من نص البحث
       bool matchesSearch = searchQuery.value.isEmpty || p.name.toLowerCase().contains(searchQuery.value.toLowerCase());
-
-      // 3. تحقق من وجود مخزن متوفر (المشروبات دايماً true، والبن حسب الرصيد المحسوب فوق)
       double remaining = productRemainingMap[p.id] ?? 0;
       bool hasStock = remaining > 0;
 
@@ -131,14 +142,21 @@ class SalesController extends GetxController {
     resetFields();
   }
 
+  // 🔄 تحديث تفاصيل المنتج والتعرف على وحدته الديناميكية
   void updateProduct(int? id) {
     if (id == null) return;
     selectedProductId.value = id;
     amount.value = null;
     amountCtrl.clear();
+
     final p = products.firstWhere((p) => p.id == id);
     unitPrice.value = p.price;
-    if (p.category == 'بن') {
+    unitLabel.value = p.unit ?? "وحدة"; // 👈 تخزين وحدة الصنف الحالي (علبة، شريط، قطعة...)
+
+    // فحص تشغيل الأوزان الجاهزة بناءً على ميزة الأوزان في الإعدادات ونوع الصنف
+    final useWeights = AppConfig.enableWeightSystem && (p.unit == 'كيلو' || p.category == 'بن');
+
+    if (useWeights) {
       quantity.value = 0.125;
       qtyCtrl.text = "0.125";
     } else {
@@ -148,10 +166,12 @@ class SalesController extends GetxController {
   }
 
   void updateAmountAndWeight(String value) {
+    final useWeights = AppConfig.enableWeightSystem && (selectedCategory.value == 'بن' || unitLabel.value == 'كيلو');
+
     if (value.isEmpty) {
       amount.value = null;
       computedWeight.value = 0.0;
-      quantity.value = (selectedCategory.value == 'بن') ? 0.125 : 1.0;
+      quantity.value = useWeights ? 0.125 : 1.0;
       qtyCtrl.text = quantity.value.toString();
       return;
     }
@@ -286,8 +306,10 @@ class SalesController extends GetxController {
     amount.value = null;
     computedWeight.value = 0.0;
     amountCtrl.clear();
-    searchQuery.value = ''; // تصفير نص البحث عند تغيير الفئة أو الحفظ
-    if (selectedCategory.value == 'بن') {
+    searchQuery.value = '';
+
+    final useWeights = AppConfig.enableWeightSystem && (selectedCategory.value == 'بن' || unitLabel.value == 'كيلو');
+    if (useWeights) {
       quantity.value = 0.125;
       qtyCtrl.text = "0.125";
     } else {

@@ -1,8 +1,8 @@
 import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import '../constants/app_config.dart';
 import '../controllers/shift_report_controller.dart';
 
 class ShiftReportScreen extends GetView<ShiftReportController> {
@@ -11,15 +11,14 @@ class ShiftReportScreen extends GetView<ShiftReportController> {
 
   @override
   Widget build(BuildContext context) {
-    // 🔥 1. تحديد إذا كان المستخدم أدمن أم لا
+    // تحديد إذا كان المستخدم أدمن أم لا (محتفظين بيها للتحكمات المستقبلية إن لزم)
     bool isAdmin = currentUser['role'] == 'admin';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F0E9),
+      backgroundColor: const Color(0xFFF8F5F2),
       appBar: AppBar(
-        title: const Text('تقرير الوردية المقفل',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
-        backgroundColor: const Color(0xFF3E2723),
+        title: const Text('تقرير الوردية المقفل', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+        backgroundColor: AppConfig.primaryColor,
         foregroundColor: Colors.white,
         centerTitle: true,
         elevation: 0,
@@ -32,7 +31,7 @@ class ShiftReportScreen extends GetView<ShiftReportController> {
       ),
       body: Obx(() {
         if (controller.isLoading.value && controller.shifts.isEmpty) {
-          return const Center(child: CircularProgressIndicator(color: Color(0xFF3E2723)));
+          return Center(child: CircularProgressIndicator(color: AppConfig.primaryColor));
         }
 
         final successfulOrdersCount = controller.ordersCount.value;
@@ -41,11 +40,12 @@ class ShiftReportScreen extends GetView<ShiftReportController> {
           children: [
             _buildShiftsHeader(),
 
-            // 📊 الكروت العلوية
+            // 📊 الكروت العلوية الإحصائية المريحة للعين
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
                 child: Row(
                   children: [
                     _buildCreativeStatCard(
@@ -72,7 +72,7 @@ class ShiftReportScreen extends GetView<ShiftReportController> {
                     _buildCreativeStatCard(
                       "الصافي بالصندوق",
                       "${controller.finalNetCash.value.toStringAsFixed(2)} ج",
-                      Colors.blue.shade700,
+                      AppConfig.primaryColor,
                       Icons.account_balance_wallet_rounded,
                     ),
                   ],
@@ -84,25 +84,26 @@ class ShiftReportScreen extends GetView<ShiftReportController> {
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
               child: Row(
                 children: [
-                  const Icon(Icons.assignment_outlined, color: Color(0xFF3E2723), size: 22),
+                  Icon(Icons.assignment_outlined, color: AppConfig.primaryColor, size: 22),
                   const SizedBox(width: 8),
                   const Text(
-                    "سجل عمليات الوردية",
+                    "سجل عمليات الوردية المباشرة",
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
                   ),
                 ],
               ),
             ),
 
-            // القائمة بالتصميم المطور مع دعم الإلغاء للأدمن 🎯
+            // القائمة بالتصميم المطور ودعم الإلغاء/الاستعادة للجميع 🎯
             Expanded(
               child: RefreshIndicator(
                 onRefresh: () => controller.loadReport(reset: true),
+                color: AppConfig.primaryColor,
                 child: controller.reportData.isEmpty && controller.shiftExpenses.isEmpty
-                    ? const Center(child: Text("لا توجد عمليات في هذه الوردية", style: TextStyle(fontSize: 16)))
+                    ? const Center(child: Text("لا توجد عمليات مسجلة في هذه الوردية", style: TextStyle(fontSize: 16, color: Colors.grey)))
                     : ListView.builder(
                   controller: controller.scrollController,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
                   itemCount: controller.shiftExpenses.length +
                       controller.reportData.length +
                       (controller.isLoadingMore.value ? 1 : 0),
@@ -114,17 +115,16 @@ class ShiftReportScreen extends GetView<ShiftReportController> {
                     final saleIndex = index - controller.shiftExpenses.length;
 
                     if (saleIndex == controller.reportData.length) {
-                      return const Padding(
-                        padding: EdgeInsets.all(16.0),
+                      return Padding(
+                        padding: const EdgeInsets.all(16.0),
                         child: Center(
-                          child: CircularProgressIndicator(color: Color(0xFF3E2723)),
+                          child: CircularProgressIndicator(color: AppConfig.primaryColor),
                         ),
                       );
                     }
 
                     final sale = controller.reportData[saleIndex];
-                    // 🔥 تمرير صلاحية الـ isAdmin لكارت البيع
-                    return _buildSaleItem(sale, isAdmin);
+                    return _buildSaleItem(sale);
                   },
                 ),
               ),
@@ -135,15 +135,14 @@ class ShiftReportScreen extends GetView<ShiftReportController> {
     );
   }
 
-  // شريط الورديات
-// جوة الـ ShiftReportScreen
+  // شريط الورديات الأفقي الذكي مع دعم التمرير بالماوس والتاتش والـ Trackpad بالكامل
   Widget _buildShiftsHeader() {
     return Container(
       height: 82,
       margin: const EdgeInsets.only(top: 8),
       child: Obx(() {
         if (controller.shifts.isEmpty && controller.isLoading.value) {
-          return const Center(child: CircularProgressIndicator(color: Color(0xFF3E2723)));
+          return Center(child: CircularProgressIndicator(color: AppConfig.primaryColor));
         }
 
         return ScrollConfiguration(
@@ -162,13 +161,13 @@ class ShiftReportScreen extends GetView<ShiftReportController> {
             itemCount: controller.shifts.length + (controller.isShiftsLoadingMore.value ? 1 : 0),
             itemBuilder: (context, index) {
               if (index == controller.shifts.length) {
-                return const Center(
+                return Center(
                   child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: SizedBox(
                       width: 24,
                       height: 24,
-                      child: CircularProgressIndicator(strokeWidth: 2.5, color: Color(0xFF3E2723)),
+                      child: CircularProgressIndicator(strokeWidth: 2.5, color: AppConfig.primaryColor),
                     ),
                   ),
                 );
@@ -182,7 +181,9 @@ class ShiftReportScreen extends GetView<ShiftReportController> {
         );
       }),
     );
-  }  Widget _buildShiftChip(Map s, bool isSelected) {
+  }
+
+  Widget _buildShiftChip(Map s, bool isSelected) {
     DateTime? dt = s['start_time'] != null ? DateTime.tryParse(s['start_time'].toString())?.toLocal() : null;
     String displayDate = dt != null ? DateFormat('dd/MM').format(dt) : "—";
     bool isMorning = s['type'] == "morning";
@@ -190,25 +191,28 @@ class ShiftReportScreen extends GetView<ShiftReportController> {
     return GestureDetector(
       onTap: () => controller.selectShift(s['id']),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        margin: const EdgeInsets.only(right: 12),
+        duration: const Duration(milliseconds: 200),
+        margin: const EdgeInsets.only(right: 12, top: 4, bottom: 4),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF3E2723) : Colors.white,
+          color: isSelected ? AppConfig.primaryColor : Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: isSelected ? Colors.brown : Colors.grey.shade300),
-          boxShadow: isSelected ? [BoxShadow(color: Colors.brown.withValues(alpha: 0.3), blurRadius: 10)] : null,
+          border: Border.all(color: isSelected ? AppConfig.primaryColor : Colors.grey.shade300),
+          boxShadow: isSelected ? [BoxShadow(color: AppConfig.primaryColor.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 2))] : null,
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(isMorning ? "☀️ صباحي" : "🌙 مسائي",
-                style: TextStyle(
-                  color: isSelected ? Colors.white : Colors.brown[800],
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13.5,
-                )),
-            Text(displayDate, style: TextStyle(color: isSelected ? Colors.white70 : Colors.grey, fontSize: 11.5)),
+            Text(
+              isMorning ? "☀️ صباحي" : "🌙 مسائي",
+              style: TextStyle(
+                color: isSelected ? Colors.white : const Color(0xFF5D4037),
+                fontWeight: FontWeight.bold,
+                fontSize: 13.5,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(displayDate, style: TextStyle(color: isSelected ? Colors.white70 : Colors.grey[600], fontSize: 11.5)),
           ],
         ),
       ),
@@ -233,7 +237,7 @@ class ShiftReportScreen extends GetView<ShiftReportController> {
           const SizedBox(height: 10),
           Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w500)),
           const SizedBox(height: 4),
-          Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
+          Text(value, style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: color)),
         ],
       ),
     );
@@ -242,14 +246,14 @@ class ShiftReportScreen extends GetView<ShiftReportController> {
   Widget _buildExpenseItem(Map exp) {
     final amount = (exp['amount'] as num?)?.toDouble() ?? 0.0;
     final notes = exp['notes']?.toString().trim() ?? '';
-    final cashierName = (exp['cashier_name'] ?? exp['user_name'] ?? controller.shifts.firstWhere((s) => s['id'] == exp['shift_id'], orElse: () => {})['user_name'] ?? 'سيد').toString().trim();
+    final cashierName = (exp['cashier_name'] ?? exp['user_name'] ?? 'كاشير الوردية').toString().trim();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.01), blurRadius: 4, offset: const Offset(0, 2))],
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -271,9 +275,9 @@ class ShiftReportScreen extends GetView<ShiftReportController> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.person, size: 13, color: Colors.grey.shade600),
-                  const SizedBox(width: 3),
+                  const SizedBox(width: 4),
                   Text(
-                    "الوردية: $cashierName",
+                    "بواسطة: $cashierName",
                     style: TextStyle(fontSize: 11, color: Colors.grey.shade700, fontWeight: FontWeight.w500),
                   ),
                 ],
@@ -295,25 +299,16 @@ class ShiftReportScreen extends GetView<ShiftReportController> {
     );
   }
 
-  // 🔥 تحديث: دعم خاصية الإلغاء والاستعادة بناءً على الـ isAdmin
-  Widget _buildSaleItem(Map sale, bool isAdmin) {
+  Widget _buildSaleItem(Map sale) {
     bool isCancelled = sale['status'] == 'cancelled';
     final quantity = (sale['quantity'] as num?)?.toDouble() ?? 0.0;
     final totalAmount = (sale['total_amount'] as num?)?.toDouble() ?? 0.0;
-    String unitType = (sale['unit_type'] ?? sale['unit'] ?? sale['unit_name'] ?? '').toString().trim();
 
-    final cashierName = (sale['cashier_name'] ?? sale['user_name'] ?? sale['employee_name'] ?? controller.shifts.firstWhere((s) => s['id'] == sale['shift_id'], orElse: () => {})['user_name'] ?? 'كاشير').toString().trim();
+    // ✨ جلب الوحدة الحقيقية المخزنة مباشرة في المبيعات بدون شروط وتخمينات Hardcoded قد تتسبب بـ Conflict
+    String unitType = (sale['unit_type'] ?? sale['unit'] ?? sale['unit_name'] ?? 'قطعة').toString().trim();
+    if (unitType.isEmpty) unitType = 'قطعة';
 
-    // 🎯 المنطق الجديد لتحديد الوحدة:
-    if (unitType.isEmpty) {
-      if (unitType == 'بن') {
-        unitType = 'كيلو';
-      } else if (unitType == 'مشروب') {
-        unitType = 'كوب';
-      } else {
-        unitType = 'قطعة';
-      }
-    }
+    final cashierName = (sale['cashier_name'] ?? sale['user_name'] ?? sale['employee_name'] ?? 'كاشير الوردية').toString().trim();
     String formattedQty = quantity % 1 == 0 ? quantity.toInt().toString() : quantity.toString();
 
     return Container(
@@ -325,6 +320,7 @@ class ShiftReportScreen extends GetView<ShiftReportController> {
         border: Border.all(
           color: isCancelled ? Colors.red.withValues(alpha: 0.1) : Colors.transparent,
         ),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.01), blurRadius: 4, offset: const Offset(0, 2))],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -366,7 +362,7 @@ class ShiftReportScreen extends GetView<ShiftReportController> {
                       child: Row(
                         children: [
                           Icon(Icons.person, size: 13, color: Colors.grey.shade600),
-                          const SizedBox(width: 3),
+                          const SizedBox(width: 4),
                           Text(
                             cashierName,
                             style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w500),
@@ -392,16 +388,14 @@ class ShiftReportScreen extends GetView<ShiftReportController> {
                 ),
               ),
               const SizedBox(height: 4),
-
-              // ✨ التعديل هنا: شلنا الـ if(isAdmin) وبقى متاح للكل (كاشير أو آدمن)
               InkWell(
                 onTap: () => controller.toggleStatus(
                   sale['id'],
                   sale['status'],
                 ),
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(6),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4), // تكبير مساحة الضغط شوية لتجربة مستخدم أفضل
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   child: Text(
                     isCancelled ? "إستعادة" : "إلغاء العملية",
                     style: TextStyle(
@@ -417,4 +411,5 @@ class ShiftReportScreen extends GetView<ShiftReportController> {
         ],
       ),
     );
-  }}
+  }
+}

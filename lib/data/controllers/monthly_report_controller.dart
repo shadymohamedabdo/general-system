@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../constants/constants.dart';
+import '../database_helper.dart'; // 👈 استيراد الداتابيز لجلب الفئات والوحدات
 import '../repositories/reports_repository.dart';
 import '../repositories/purchases_repository.dart';
 import '../repositories/dashboard_repository.dart';
@@ -11,6 +12,7 @@ class MonthlyReportController extends GetxController {
   final ReportsRepository _repo = ReportsRepository();
   final PurchasesRepository _purchasesRepo = PurchasesRepository();
   final DashboardRepository _dashboardRepo = DashboardRepository();
+  final dbHelper = DatabaseHelper.instance;
 
   // الحالة
   var isLoading = true.obs;
@@ -33,17 +35,19 @@ class MonthlyReportController extends GetxController {
   var selectedMonth = DateTime.now().month.obs;
   var selectedYear = DateTime.now().year.obs;
 
-  // نموذج الإدخال الجانبي
+  // نموذج الإدخال
   var showAddPurchaseForm = false.obs;
   final productNameCtrl = TextEditingController();
   final quantityCtrl = TextEditingController();
-  final costPerUnitCtrl = TextEditingController(); // 🟢 يستقبل الآن: سعر الكيلو / الوحدة الواحد
-  final totalCostCtrl = TextEditingController();   // 🔥 الجديد: التكلفة الإجمالية المحسوبة تلقائياً
+  final costPerUnitCtrl = TextEditingController();
+  final totalCostCtrl = TextEditingController();
 
-  var selectedCategory = 'بن'.obs;
-  var selectedUnit = 'كيلو'.obs;
+  // 🆕 قوائم ديناميكية للفئات والوحدات بدلاً من القيم الثابتة
+  var categories = <String>[].obs;
+  var unitsList = <String>[].obs;
 
-  final List<String> categories = ['بن', 'مشروب', 'أكل سريع'];
+  var selectedCategory = RxnString();
+  var selectedUnit = RxnString();
 
   // الـ Pagination للمشتريات
   var currentPage = 1.obs;
@@ -56,42 +60,37 @@ class MonthlyReportController extends GetxController {
     super.onInit();
     loadReport();
 
-    // 🔥 مراقبة حقل الكمية وسعر الوحدة لحظياً لتحديث الإجمالي تلقائياً
+    // 🔄 مراقبة حقل الكمية وسعر الوحدة لحظياً لتحديث الإجمالي تلقائياً
     quantityCtrl.addListener(_calculateTotalCost);
     costPerUnitCtrl.addListener(_calculateTotalCost);
 
-    ever(selectedCategory, (cat) {
-      updateUnitFromCategory(cat);
+    // مراقبة الفئة لتحديث الوحدة ذكياً
+    ever(selectedCategory, (String? cat) {
+      if (cat != null) updateUnitFromCategory(cat);
     });
   }
 
-  // ✨ دالة الحساب التلقائي السحرية
+  // ✨ دالة الحساب التلقائي اللحظية
   void _calculateTotalCost() {
     final double qty = double.tryParse(quantityCtrl.text.trim()) ?? 0.0;
     final double price = double.tryParse(costPerUnitCtrl.text.trim()) ?? 0.0;
 
     if (qty > 0 && price > 0) {
       final double total = qty * price;
-      // لو الرقم صحيح بنعرضه بدون فاصلة عشرية، لو كسر بنعرض رقمين بعد الفاصلة
       totalCostCtrl.text = total % 1 == 0 ? '${total.toInt()}' : total.toStringAsFixed(2);
     } else {
-      totalCostCtrl.text = ''; // تفريغ الحقل لو الخانات فاضية
+      totalCostCtrl.text = '';
     }
   }
 
+  // تحديث تلقائي ذكي للوحدة بناء على الفئة المختارة (إذا كانت متوفرة بالداتابيز)
   void updateUnitFromCategory(String category) {
-    switch (category) {
-      case 'بن':
-        selectedUnit.value = 'كيلو';
-        break;
-      case 'مشروب':
-        selectedUnit.value = 'كوب';
-        break;
-      case 'أكل سريع':
-        selectedUnit.value = 'قطعة';
-        break;
-      default:
-        selectedUnit.value = 'قطعة';
+    if (category == 'بن' && unitsList.contains('كيلو')) {
+      selectedUnit.value = 'كيلو';
+    } else if (category == 'مشروب' && unitsList.contains('كوب')) {
+      selectedUnit.value = 'كوب';
+    } else if (unitsList.isNotEmpty && selectedUnit.value == null) {
+      selectedUnit.value = unitsList.first;
     }
   }
 
@@ -112,6 +111,22 @@ class MonthlyReportController extends GetxController {
 
       int month = selectedMonth.value;
       int year = selectedYear.value;
+
+      // 📥 جلب الفئات والوحدات الديناميكية أولاً لضمان عدم حدوث Crash في القوائم المنسدلة
+      final db = await dbHelper.database;
+      final catData = await db.query('categories');
+      final unitData = await db.query('units');
+
+      categories.assignAll(catData.map((e) => e['name'] as String).toList());
+      unitsList.assignAll(unitData.map((e) => e['name'] as String).toList());
+
+      // وضع قيم افتراضية آمنة
+      if (selectedCategory.value == null && categories.isNotEmpty) {
+        selectedCategory.value = categories.first;
+      }
+      if (selectedUnit.value == null && unitsList.isNotEmpty) {
+        selectedUnit.value = unitsList.first;
+      }
 
       final sales = await _repo.getMonthlyReport(month, year);
       salesData.assignAll(sales.map((e) => SaleItem.fromMap(e)).toList());
@@ -224,7 +239,6 @@ class MonthlyReportController extends GetxController {
     netProfit.value = totalSales.value - totalPurchaseCost.value - totalExpenses.value;
   }
 
-  // ➕ حفظ المصروف الجديد بعد الحساب التلقائي
   Future<void> addPurchase() async {
     if (productNameCtrl.text.isEmpty) {
       AppSnackbar.warning("يرجى إدخال اسم المصروف أو المنتج");
@@ -237,22 +251,25 @@ class MonthlyReportController extends GetxController {
       return;
     }
 
-    // 🔥 تم التعديل لتصبح القراءة من حقل الإجمالي التلقائي المباشر
     final totalCost = double.tryParse(totalCostCtrl.text) ?? 0;
     if (totalCost <= 0) {
       AppSnackbar.warning("القيمة الإجمالية يجب أن تكون أكبر من صفر (تأكد من إدخال السعر)");
       return;
     }
 
-    // سعر الوحدة الواحدة جاهز ومقروء من حقل السعر الذي أدخله المستخدم
+    if (selectedUnit.value == null) {
+      AppSnackbar.warning("يرجى اختيار وحدة قياس");
+      return;
+    }
+
     final pricePerUnit = double.tryParse(costPerUnitCtrl.text) ?? 0;
 
     try {
       final purchase = PurchaseItem(
         productName: productNameCtrl.text.trim(),
         quantity: quantity,
-        unit: selectedUnit.value,
-        costPerUnit: pricePerUnit, // نمرر سعر الوحدة الصافي للداتابيز بآمان
+        unit: selectedUnit.value!,
+        costPerUnit: pricePerUnit,
         month: selectedMonth.value,
         year: selectedYear.value,
       );
@@ -289,8 +306,9 @@ class MonthlyReportController extends GetxController {
     productNameCtrl.clear();
     quantityCtrl.clear();
     costPerUnitCtrl.clear();
-    totalCostCtrl.clear(); // تصفير خانة الإجمالي المحسوب
-    selectedCategory.value = 'بن';
+    totalCostCtrl.clear();
+    if (categories.isNotEmpty) selectedCategory.value = categories.first;
+    if (unitsList.isNotEmpty) selectedUnit.value = unitsList.first;
   }
 
   @override
@@ -298,7 +316,7 @@ class MonthlyReportController extends GetxController {
     productNameCtrl.dispose();
     quantityCtrl.dispose();
     costPerUnitCtrl.dispose();
-    totalCostCtrl.dispose(); // تنظيف خانة الإجمالي لمنع الـ Memory Leaks
+    totalCostCtrl.dispose();
     super.onClose();
   }
 }

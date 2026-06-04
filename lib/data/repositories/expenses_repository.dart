@@ -46,14 +46,14 @@ class ExpensesRepository {
 // أضف هذه الدالة داخل كلاس ExpensesRepository
   Future<List<Map<String, dynamic>>> getExpensesRawForShift(int shiftId) async {
     final db = await dbHelper.database;
-    return await db.query(
-      'expenses',
-      where: 'shift_id = ?',
-      whereArgs: [shiftId],
-      orderBy: 'id DESC',
-    );
-  }
-  // 3. جلب إجمالي المصروفات لشهر معين
+    return await db.rawQuery('''
+    SELECT e.*, u.name as cashier_name 
+    FROM expenses e
+    LEFT JOIN users u ON e.user_id = u.id
+    WHERE e.shift_id = ?
+    ORDER BY e.id DESC
+  ''', [shiftId]);
+  }  // 3. جلب إجمالي المصروفات لشهر معين
   Future<double> getTotalExpensesForMonth(int month, int year) async {
     final db = await dbHelper.database;
     final startDate = DateTime(year, month, 1).toIso8601String();
