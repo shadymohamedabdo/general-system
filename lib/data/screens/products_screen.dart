@@ -25,10 +25,10 @@ class ProductsScreen extends GetView<ProductsController> {
                 tooltip: 'تحديث الأرصدة',
               ),
             ],
-            title: Text(AppConfig.businessName + " - المخزن",
+            title: Text("${AppConfig.businessName} - المخزن",
                 style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1)),
             centerTitle: true,
-            backgroundColor: AppConfig.primaryColor,
+            backgroundColor: AppConfig.system,
             foregroundColor: Colors.white,
             elevation: 0,
             bottom: TabBar(
@@ -37,8 +37,17 @@ class ProductsScreen extends GetView<ProductsController> {
                 controller.updateTabFilter(dynamicTabs[index]);
               },
               isScrollable: true,
-              indicatorColor: Colors.orangeAccent,
+
+              // 🎨 تظبيط ألوان الوقوف والتفاعل بناءً على الهوية الجديدة
+              indicatorColor: Colors.orangeAccent, // لون الخط السفلي للـ Tab النشط
               indicatorWeight: 4,
+
+              labelColor: Colors.red, // 👈 لون نص وأيقونة الـ Tab النشط (اللي واقف عليه حالياً)
+              labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+
+              unselectedLabelColor: Colors.white.withOpacity(0.65), // 👈 لون نص وأيقونات الـ Tabs غير النشطة (علشان ما تضايقش العين)
+              unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal, fontSize: 13),
+
               tabs: dynamicTabs.map((tabName) {
                 IconData tabIcon = tabName == 'الكل'
                     ? Icons.all_inclusive
@@ -386,7 +395,7 @@ class ProductsScreen extends GetView<ProductsController> {
               onPressed: controller.addProduct,
               style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 55),
-                  backgroundColor: AppConfig.primaryColor,
+                  backgroundColor: AppConfig.system,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
               child: const Text('إضافة للمخزن 💾',
                   style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -410,7 +419,7 @@ class ProductsScreen extends GetView<ProductsController> {
               duration: const Duration(milliseconds: 200),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: isSelected ? AppConfig.primaryColor : Colors.grey[100],
+                color: isSelected ? AppConfig.system : Colors.grey[100],
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: isSelected ? AppConfig.primaryColor : Colors.grey.shade300),
               ),
