@@ -74,7 +74,7 @@ class TrialExpiredScreen extends StatelessWidget {
                         Icon(Icons.phone_android, color: Colors.brown[800]),
                         const SizedBox(width: 10),
                         Text(
-                          'للتفعيل: 01099389285',
+                          'ل للتفعيل: 01099389285',
                           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.brown[900]),
                         ),
                       ],
@@ -98,7 +98,7 @@ class TrialExpiredScreen extends StatelessWidget {
         child: TextField(
           controller: codeCtrl,
           decoration: const InputDecoration(
-            labelText: "أدخل كود التفعيل الماجيك",
+            labelText: "أدخل كود التفعيل الماجيك الكامل",
             border: OutlineInputBorder(),
           ),
         ),
@@ -108,20 +108,20 @@ class TrialExpiredScreen extends StatelessWidget {
       confirmTextColor: Colors.white,
       buttonColor: Colors.brown[700],
       onConfirm: () async {
-        // تنظيف النص تماماً من أي مسافات وحروف كبيرة
-        String inputCode = codeCtrl.text.trim().replaceAll(' ', '').toLowerCase();
+        // الاستدعاء الذكي للدالة المركزية الموحدة من الـ DatabaseHelper 🎯
+        if (DatabaseHelper.instance.verifyDailyActivationCode(codeCtrl.text)) {
 
-        if (inputCode == 'shady112001') {
-          // 🛠️ جلب سيريال الجهاز الحالي المقفول عليه الهاردوير لمنع النقل
+          // جلب سيريال الجهاز الحالي المقفول عليه الهاردوير لمنع النقل
           String currentSerial = await DatabaseHelper.instance.getWindowsSerial();
+
+          // تفعيل النسخة مدى الحياة على الجهاز ده
           await DatabaseHelper.instance.activateSystemFull(currentSerial);
 
           Get.back(); // إغلاق الـ Dialog
-
           Get.offAll(() => const LoginScreen());
-          AppSnackbar.success('تم تفعيل النسخة الكاملة للمحل بنجاح مدى الحياة!');
+          AppSnackbar.success('تم تفعيل النسخة الكاملة للجهاز بنجاح مدى الحياة! ✨');
         } else {
-          AppSnackbar.error('الكود غير صحيح!');
+          AppSnackbar.error('الكود غير صحيح أو انتهت صلاحيته اليومية!');
         }
       },
     );

@@ -103,7 +103,7 @@ class LoginScreen extends GetView<LoginController> {
         child: TextField(
           controller: codeCtrl,
           decoration: const InputDecoration(
-            labelText: "أدخل كود التفعيل الماجيك",
+            labelText: "أدخل كود التفعيل الماجيك الكامل",
             border: OutlineInputBorder(),
           ),
         ),
@@ -113,19 +113,19 @@ class LoginScreen extends GetView<LoginController> {
       confirmTextColor: Colors.white,
       buttonColor: Colors.brown[700],
       onConfirm: () async {
-        String inputCode = codeCtrl.text.trim().replaceAll(' ', '').toLowerCase();
+        // الاستدعاء الذكي للدالة المركزية من الـ DatabaseHelper 🎯
+        if (DatabaseHelper.instance.verifyDailyActivationCode(codeCtrl.text)) {
 
-        if (inputCode == 'shady112001') {
-          // 🛠️ جلب سيريال هذا الجهاز لقفل الداتابيز عليه فوراً
+          // 🛠️ جلب سيريال هذا الجهاز لقفل الداتابيز عليه فوراً ومنع النقل
           String currentSerial = await DatabaseHelper.instance.getWindowsSerial();
           await DatabaseHelper.instance.activateSystemFull(currentSerial);
 
-          Get.back();
-          AppSnackbar.success("تم تفعيل النسخة الكاملة للمحل بنجاح مدى الحياة!");
+          Get.back(); // إغلاق الـ Dialog
+          AppSnackbar.success("تم تفعيل النسخة الكاملة للمحل بنجاح مدى الحياة! ✨");
           await Future.delayed(const Duration(seconds: 1));
           Get.offAll(() => const LoginScreen());
         } else {
-          AppSnackbar.error("الكود غير صحيح!");
+          AppSnackbar.error("الكود غير صحيح أو انتهت صلاحيته اليومية!");
         }
       },
     );

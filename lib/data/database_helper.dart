@@ -304,6 +304,23 @@ class DatabaseHelper {
       });
     }
   }
+  /// دالة مركزية للتحقق من كود التفعيل اليومي بالتاريخ الكامل
+  bool verifyDailyActivationCode(String inputCode) {
+    // 1️⃣ تنظيف النص
+    String cleanedInput = inputCode.trim().replaceAll(' ', '').toLowerCase();
+
+    // 2️⃣ توليد شفرة اليوم الحالي
+    final now = DateTime.now();
+    final String dayStr = now.day.toString().padLeft(2, '0');
+    final String monthStr = now.month.toString().padLeft(2, '0');
+    final String yearStr = now.year.toString();
+
+    final String dynamicDailyPassword = "shady112001$dayStr$monthStr$yearStr";
+
+
+    // 3️⃣ المقارنة
+    return cleanedInput.isNotEmpty && cleanedInput == dynamicDailyPassword;
+  }
 
   Future<void> _initSecurityTable(Database db) async {
     final result = await db.query('app_security');
