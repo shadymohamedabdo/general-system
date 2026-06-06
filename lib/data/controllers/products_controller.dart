@@ -68,6 +68,7 @@ class ProductsController extends GetxController {
   }
 
   // 📊 حساب الرصيد الذكي بالاعتماد على الفئات والوحدات المرنة
+// 📊 حساب الرصيد الذكي بالاعتماد على حركة المشتريات والمبيعات
   Future<void> loadProductBalances() async {
     try {
       final now = DateTime.now();
@@ -87,14 +88,19 @@ class ProductsController extends GetxController {
 
         String pNameNormalized = product.name.trim().toLowerCase();
 
-        // ⚡ تعديل مرن: المنتجات التي ليست (كيلو أو جرام) وتعتبر مشروبات في الكافيه تعطى رصيداً مفتوحاً
-        if (product.unit != 'كيلو' && product.category == 'مشروب') {
-          newStock[product.id!] = 999.0;
-        } else {
-          double purchased = purchasedQuantity[pNameNormalized] ?? 0;
-          double manualStock = product.initialStock ?? 0.0;
-          double totalIncoming = purchased > 0 ? purchased : manualStock;
+        double purchased = purchasedQuantity[pNameNormalized] ?? 0.0;
+        double manualStock = product.initialStock ?? 0.0;
 
+        // إجمالي الكمية الواردة (سواء من المشتريات أو الإدخال اليدوي)
+        double totalIncoming = purchased > 0 ? purchased : manualStock;
+
+        // 🎯 التعديل السحري هنا:
+        // لو مفيش مشتريات نزلت للمنتج ده، وكمان أنت مش مدخل له كمية بايدك (يعنيtotalIncoming = 0)
+        // وكمان مش تبع قسم "بن" (لأن البن لازم يتحسب دايماً بوزنه)، يبقى ده رصيد مفتوح!
+        if (totalIncoming == 0.0 && product.category != 'بن') {
+          newStock[product.id!] = 999.0; // كود رمزي للرصيد المفتوح
+        } else {
+          // حساب الحسبة العادية للمنتجات المحددة بالكمية
           double sold = sales[product.name] ?? 0;
           double remaining = totalIncoming - sold;
 
@@ -106,7 +112,6 @@ class ProductsController extends GetxController {
       AppSnackbar.error("خطأ في حساب الأرصدة: $e");
     }
   }
-
   Future<void> loadAvailableProductNames() async {
     try {
       final purchases = await _purchasesRepo.getAllPurchases();

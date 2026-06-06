@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controllers/employees_controller.dart';
+import 'manage.dart';
 
 // شاشة إضافة وإدارة الموظفين
 class AddEmployeeScreen extends GetView<EmployeesController> {
@@ -27,6 +28,14 @@ class AddEmployeeScreen extends GetView<EmployeesController> {
           'إدارة فريق العمل',
           style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.manage_accounts, color: Colors.white),
+            onPressed: () {
+              Get.to (() => const MangeScreen());
+            }
+          ),
+        ],
         centerTitle: true,
         backgroundColor: const Color(0xFF3E2723),
         foregroundColor: Colors.white,

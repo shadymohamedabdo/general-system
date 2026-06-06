@@ -121,13 +121,19 @@ class AddSaleScreen extends GetView<SalesController> {
       decoration: InputDecoration(labelText: 'المنتج المتاح', prefixIcon: Icon(Icons.inventory_2_outlined, color: AppConfig.primaryColor), border: OutlineInputBorder(borderRadius: BorderRadius.circular(15))),
       items: controller.availableProducts.map((p) {
         double remaining = controller.productRemainingMap[p.id] ?? 0;
+
+        // 🎯 تعديل العرض: لو 999 يكتب "رصيد مفتوح"، غير كده يكتب الكمية المتاحة رقمياً
+        String textRemaining = remaining == 999.0
+            ? 'رصيد مفتوح ✨'
+            : '${remaining.toStringAsFixed(p.category == 'بن' ? 2 : 0)} متاح';
+
         return DropdownMenuItem<int>(
             value: p.id,
             child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(p.name),
-                  Text('${remaining.toStringAsFixed(2)} متاح', style: const TextStyle(fontSize: 12, color: Colors.blueGrey))
+                  Text(textRemaining, style: const TextStyle(fontSize: 12, color: Colors.blueGrey))
                 ]
             )
         );
@@ -135,7 +141,6 @@ class AddSaleScreen extends GetView<SalesController> {
       onChanged: (v) => controller.updateProduct(v),
     );
   }
-
   // ⚖️ قسم الكمية يفحص التفعيل التلقائي لنظام الأوزان والموازين
   Widget _buildQuantitySection() {
     // التحقق بناءً على ميزة الأوزان في AppConfig ووحدة المنتج المختار الحالي

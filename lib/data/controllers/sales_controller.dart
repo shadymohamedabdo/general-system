@@ -84,6 +84,7 @@ class SalesController extends GetxController {
   }
 
   // 🧠 حساب الأرصدة ديناميكياً بدون إجبار السيستم على كلمة "مشروب" ثابتة
+// 🧠 حساب الأرصدة ديناميكياً بناءً على حركة المشتريات والكمية الافتتاحية
   Future<void> _loadRemainingBalances() async {
     try {
       final now = DateTime.now();
@@ -97,21 +98,20 @@ class SalesController extends GetxController {
       }
 
       for (var product in products) {
-        // ⚡ لو المنتج ليس له رصيد مبيعات مسبق أو يعتبر خدمة مفتوحة (مثل الأكواب المفتوحة بالكافيه)
-        // بنعطيه رصيد افتراضي كبير، عدا ذلك بنحسب الوارد - الصادر بدقة
-        if (product.unit != 'كيلو' && product.category == 'مشروب') {
+        if (product.id == null) continue;
+
+        String productKey = product.name.trim().toLowerCase();
+        double purchasedQty = purchasedQuantityMap[productKey] ?? 0.0;
+        double manualStock = product.initialStock ?? 0.0;
+
+        // إجمالي الكمية الواردة
+        double totalIncoming = purchasedQty > 0 ? purchasedQty : manualStock;
+
+        // 🎯 التعديل السحري: لو ملوش مشتريات ولا كمية يدوية ومش قسم بن، يبقى رصيد مفتوح (999.0)
+        if (totalIncoming == 0.0 && product.category != 'بن') {
           productRemainingMap[product.id!] = 999.0;
         } else {
-          String productKey = product.name.trim().toLowerCase();
-          double purchasedQty = purchasedQuantityMap[productKey] ?? 0.0;
-
-          double totalIncoming = 0.0;
-          if (purchasedQty > 0) {
-            totalIncoming = purchasedQty;
-          } else {
-            totalIncoming = product.initialStock ?? 0.0;
-          }
-
+          // الحسبة العادية للمنتجات محددة الكمية
           double sold = sales[product.name] ?? 0.0;
           double remaining = totalIncoming - sold;
 
@@ -122,7 +122,6 @@ class SalesController extends GetxController {
       AppSnackbar.error("خطأ في حساب الأرصدة: $e");
     }
   }
-
   // 🔍 الفلترة الذكية
   void _filterProducts() {
     var filtered = products.where((p) {

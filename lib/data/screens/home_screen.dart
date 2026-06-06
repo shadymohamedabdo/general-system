@@ -5,7 +5,6 @@ import '../constants/app_config.dart';
 import '../constants/constants.dart';
 import '../controllers/home_controller.dart';
 import '../database_helper.dart';
-import 'InventoryAttributesScreen.dart';
 import 'add_sale_screen.dart';
 import 'shift_report_screen.dart';
 import 'monthly_report.dart';
@@ -131,13 +130,6 @@ class HomeScreen extends GetView<HomeController> {
                       icon: Icons.inventory_2_rounded, // 👈 أيقونة مخزن عامة أنسب للـ Universal POS
                       color: Colors.amber[200]!,
                       onTap: () => Get.to(() => const ProductsScreen(), binding: ProductsBinding()),
-                    ),
-                    // ✨ الزرار الجديد والمهم جداً: إدارة الفئات والوحدات
-                    _buildMenuItem(
-                      label: 'الفئات والوحدات',
-                      icon: Icons.tune_rounded, // شكل تروس ضبط الفئات والوحدات
-                      color: Colors.pinkAccent[100]!,
-                      onTap: () => Get.to(() => const InventoryAttributesScreen()),
                     ),
                     _buildMenuItem(
                       label: 'الاحصائيات',

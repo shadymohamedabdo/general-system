@@ -106,10 +106,15 @@ class ProductsScreen extends GetView<ProductsController> {
 
   Widget _buildPremiumProductCard(Product p) {
     double remaining = controller.productStock[p.id] ?? 0.0;
-    bool isOutofStock = remaining <= 0;
 
-    bool isLowStock = (p.category == 'بن' && remaining > 0 && remaining <= 2.0) ||
-        (p.category != 'بن' && p.category != 'مشروب' && remaining > 0 && remaining <= 5.0);
+    // 🎯 التعديل: المنتج يعتبر نافد فقط لو كميته صفر أو أقل، وبشرط ميكونش رصيد مفتوح (999)
+    bool isOutofStock = remaining <= 0 && remaining != 999.0;
+
+    // 💡 النواقص: بتتحسب فقط للمنتجات العادية اللي مش رصيد مفتوح
+    bool isLowStock = remaining != 999.0 && (
+        (p.category == 'بن' && remaining > 0 && remaining <= 2.0) ||
+            (p.category != 'بن' && remaining > 0 && remaining <= 5.0)
+    );
 
     Color cardBgColor = Colors.white;
     if (isOutofStock) {
@@ -119,8 +124,8 @@ class ProductsScreen extends GetView<ProductsController> {
     }
 
     String unitLabel = p.unit ?? 'وحدة';
-
     final style = _getCategoryStyle(p.category);
+
     return Container(
       decoration: BoxDecoration(
         color: cardBgColor,
@@ -177,7 +182,8 @@ class ProductsScreen extends GetView<ProductsController> {
                 ),
                 const SizedBox(height: 4),
 
-                if (p.category != 'مشروب') ...[
+                // 🎯 التعديل: لو الرصيد مش 999 يعرض المتاح بالأرقام، ولو 999 يقلب رصيد مفتوح فوراً
+                if (remaining != 999.0) ...[
                   Text(
                     isOutofStock
                         ? 'المتاح: 0 $unitLabel ⚠️'
@@ -226,7 +232,6 @@ class ProductsScreen extends GetView<ProductsController> {
       ),
     );
   }
-
   Widget _buildActionBtn(IconData icon, Color color, VoidCallback onTap, bool enabled) {
     return Material(
       color: Colors.transparent,
