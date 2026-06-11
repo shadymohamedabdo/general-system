@@ -299,7 +299,7 @@ class ProductsScreen extends GetView<ProductsController> {
             const Text('اسم المنتج:',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
             const SizedBox(height: 8),
-            _buildField(controller.nameCtrl, 'مثال: نسكافيه، كابوتشينو...', Icons.label),
+            _buildField(controller.nameCtrl, 'ادخل الاسم', Icons.label),
 
             const SizedBox(height: 15),
 

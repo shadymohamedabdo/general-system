@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import '../constants/app_config.dart';
 import '../controllers/shift_manage_controller.dart';
 import '../models/shift_model.dart';
 
@@ -27,7 +28,7 @@ class ShiftScreen extends GetView<ShiftsController> {
       backgroundColor: Colors.brown[50],
       appBar: AppBar(
         title: const Text('إدارة الشيفتات', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.brown[700],
+        backgroundColor: AppConfig.system,
         foregroundColor: Colors.white,
         centerTitle: true,
         elevation: 0,

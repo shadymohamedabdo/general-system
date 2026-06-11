@@ -18,7 +18,7 @@ class ShiftReportScreen extends GetView<ShiftReportController> {
       backgroundColor: const Color(0xFFF8F5F2),
       appBar: AppBar(
         title: const Text('تقرير الوردية المقفل', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
-        backgroundColor: AppConfig.primaryColor,
+        backgroundColor: AppConfig.system,
         foregroundColor: Colors.white,
         centerTitle: true,
         elevation: 0,
@@ -142,7 +142,7 @@ class ShiftReportScreen extends GetView<ShiftReportController> {
       margin: const EdgeInsets.only(top: 8),
       child: Obx(() {
         if (controller.shifts.isEmpty && controller.isLoading.value) {
-          return Center(child: CircularProgressIndicator(color: AppConfig.primaryColor));
+          return Center(child: CircularProgressIndicator(color: AppConfig.system));
         }
 
         return ScrollConfiguration(
@@ -195,7 +195,7 @@ class ShiftReportScreen extends GetView<ShiftReportController> {
         margin: const EdgeInsets.only(right: 12, top: 4, bottom: 4),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? AppConfig.primaryColor : Colors.white,
+          color: isSelected ? Colors.green : Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: isSelected ? AppConfig.primaryColor : Colors.grey.shade300),
           boxShadow: isSelected ? [BoxShadow(color: AppConfig.primaryColor.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 2))] : null,

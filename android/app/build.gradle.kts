@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.shady_cafe"
+    namespace = "com.example.shady_pharmacy"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 

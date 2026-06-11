@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../constants/app_config.dart';
 import '../constants/constants.dart';
 import '../controllers/login_controller.dart';
 import '../database_helper.dart';
@@ -27,12 +28,12 @@ class LoginScreen extends GetView<LoginController> {
                     // 🛠️ زر سري: عند الضغط مطولاً على أيقونة القهوة تفتح نافذة التفعيل
                     GestureDetector(
                       onLongPress: () => _showActivationDialog(context),
-                      child: const Icon(Icons.coffee_rounded, size: 80, color: Colors.brown),
+                      child:  Icon(Icons.coffee_rounded, size: 80, color: AppConfig.system),
                     ),
                     const SizedBox(height: 10),
-                    const Text(
+                    Text(
                       'تسجيل الدخول',
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.brown),
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppConfig.system),
                     ),
                     const SizedBox(height: 30),
 
@@ -74,7 +75,7 @@ class LoginScreen extends GetView<LoginController> {
                       child: ElevatedButton(
                         onPressed: controller.isLoading.value ? null : controller.login,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.brown[700],
+                          backgroundColor: AppConfig.system,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                         ),

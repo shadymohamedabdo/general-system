@@ -6,17 +6,17 @@ class AppConfig {
   // ==========================================
 
   // اسم النشاط اللي هيظهر في الشاشات والفاتورة
-  static const String businessName = "كافيه شادي  "; // 👈 غيرها لـ "صيدلية الشفاء" أو "سوبر ماركت الخير"
+  static const String businessName = "صيدليه شادي  "; // 👈 غيرها لـ "صيدلية الشفاء" أو "سوبر ماركت الخير"
 
   // العناوين الفرعية في الشاشات
-  static const String salesHeaderTitle = "إضافة مبيعات الكافيه"; // 👈 أو "صرف الروشتة والأدوية"
+  static const String salesHeaderTitle = "إضافة مبيعات الصيدليه"; // 👈 أو "صرف الروشتة والأدوية"
 
   // ==========================================
   // 2️⃣ مسارات الصور والخلفيات (Images)
   // ==========================================
   static const String logoPath = 'images/coffe_logo.png';
-  static const String mainPageBg = 'images/coffe.png'; // خلفية الصفحة الرئيسية
-  static const String salePageBg = 'images/poss.png';  // خلفية شاشة البيع الـ POS
+  static const String mainPageBg = 'assets/images/5.jpeg'; // خلفية الصفحة الرئيسية
+  static const String salePageBg = 'assets/images/3.jpg';  // خلفية شاشة البيع الـ POS
 
   // ==========================================
   // 3️⃣ الألوان الثيمية الموحدة (Colors)
@@ -24,7 +24,7 @@ class AppConfig {
   static const Color primaryColor = Colors.brown; // 👈 اللون الأساسي (Teal للصيدلية، Blue للماركت)
   static final Color primaryColorDark = Colors.brown.shade800; // الدرجة الغامقة للأزرار
   static final Color lightBackground = Colors.brown.shade50;  // لون خلفية الحقول والـ Dropdowns
-  static final Color system =  Colors.brown;
+  static final Color system =  Colors.blue;
 
   // ==========================================
   // 4️⃣ أيقونة النشاط الأساسية (Icons)

@@ -41,7 +41,7 @@ class AddSaleScreen extends GetView<SalesController> {
                 child: Form(
                   key: controller.formKey,
                   child: Obx(() {
-                    if (controller.isLoading.value) return Center(child: CircularProgressIndicator(color: AppConfig.primaryColor));
+                    if (controller.isLoading.value) return Center(child: CircularProgressIndicator(color: AppConfig.system));
                     return Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -76,7 +76,7 @@ class AddSaleScreen extends GetView<SalesController> {
 
   // 🏷️ الهيدر يأخذ الاسم والأيقونة والألوان من الإعدادات المركزية
   Widget _buildHeader() => Column(children: [
-    Icon(AppConfig.mainIcon, size: 50, color: AppConfig.primaryColor),
+    Icon(AppConfig.mainIcon, size: 50, color: AppConfig.system),
     const SizedBox(height: 10),
     Text(AppConfig.salesHeaderTitle, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
     Text('الموظف الحالي: ${currentUser['name']}', style: const TextStyle(color: Colors.grey)),
@@ -215,7 +215,7 @@ class AddSaleScreen extends GetView<SalesController> {
                 await controller.saveSingleProduct(currentUser['id']);
               }
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey[700]),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
             child: const Text('حفظ الفاتورة 💾', style: TextStyle(color: Colors.white)),
           ),
         ),
@@ -252,7 +252,7 @@ class AddSaleScreen extends GetView<SalesController> {
                 await _printInvoice(itemsToPrint, totalToPrint);
               }
             },
-            style: ElevatedButton.styleFrom(backgroundColor: AppConfig.primaryColorDark),
+            style: ElevatedButton.styleFrom(backgroundColor: AppConfig.system),
             child: const Text('حفظ وطباعة 🖨️', style: TextStyle(color: Colors.white)),
           ),
         ),

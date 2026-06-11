@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../constants/app_config.dart';
 import '../controllers/profit_controller.dart';
 
 class NetProfitScreen extends StatelessWidget {
@@ -14,9 +15,9 @@ class NetProfitScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('سجل المصروفات النثرية',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 19)),
-        backgroundColor: const Color(0xFF1B5E20),
+        backgroundColor: AppConfig.system,
         foregroundColor: Colors.white,
-        centerTitle: false,
+        centerTitle: true,
         elevation: 0,
         actions: [
           // 🗓️ قوائم اختيار الأشهر والسنوات ديناميكياً من الـ AppBar ليطابق شكل الشهري تماماً
@@ -24,7 +25,7 @@ class NetProfitScreen extends StatelessWidget {
             children: [
               DropdownButton<int>(
                 value: controller.selectedMonth.value,
-                dropdownColor: const Color(0xFF1B5E20),
+                dropdownColor: AppConfig.system,
                 icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
                 style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                 underline: const SizedBox(),
@@ -34,7 +35,7 @@ class NetProfitScreen extends StatelessWidget {
               const SizedBox(width: 4),
               DropdownButton<int>(
                 value: controller.selectedYear.value,
-                dropdownColor: const Color(0xFF1B5E20),
+                dropdownColor: AppConfig.system,
                 icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
                 style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                 underline: const SizedBox(),
@@ -105,7 +106,7 @@ class NetProfitScreen extends StatelessWidget {
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.add_circle, color: Color(0xFF1B5E20), size: 32),
+                    icon:  Icon(Icons.add_circle, color: AppConfig.system, size: 32),
                     onPressed: () => _showAddExpenseDialog(context, controller),
                   ),
                 ],
@@ -252,7 +253,7 @@ class NetProfitScreen extends StatelessWidget {
         actions: [
           TextButton(onPressed: () => Get.back(), child: const Text('إلغاء')),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1B5E20), foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(backgroundColor: AppConfig.system, foregroundColor: Colors.white),
             onPressed: () async {
               if (formKey.currentState!.validate()) {
                 Get.back();

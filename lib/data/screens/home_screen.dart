@@ -22,17 +22,16 @@ class HomeScreen extends GetView<HomeController> {
     final bool isLargeScreen = MediaQuery.of(context).size.width > 600;
 
     return Scaffold(
-      extendBodyBehindAppBar: true,
+      backgroundColor: const Color(0xFFF6F8FA), // خلفية طبية فاتحة ونظيفة جداً مريحة للعين
       appBar: AppBar(
         title: Text(
-          AppConfig.businessName, // 👈 تعديل ديناميكي لاسم النشاط التجاري
+          AppConfig.businessName,
           style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
         centerTitle: true,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+        backgroundColor: AppConfig.system, // AppBar صريح متناسق مع هوية السيستم
+        elevation: 2,
         actions: [
-          // زرار تصفير الحسابات والبيانات للأدمن فقط
           if (controller.isAdmin)
             IconButton(
               icon: const CircleAvatar(
@@ -42,7 +41,6 @@ class HomeScreen extends GetView<HomeController> {
               tooltip: 'تصفير الحسابات والبيانات',
               onPressed: () => _showResetConfirmationDialog(context),
             ),
-
           Padding(
             padding: const EdgeInsets.only(left: 10),
             child: IconButton(
@@ -56,142 +54,115 @@ class HomeScreen extends GetView<HomeController> {
           ),
         ],
       ),
-      body: Stack(
-        children: [
-          // 1. الصورة الخلفية الديناميكية من الـ Config
-          Container(
-            decoration: BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage(AppConfig.mainPageBg), // 👈 تقرأ من ملف الإعدادات الموحد
-                fit: BoxFit.cover,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: GridView.count(
+            crossAxisCount: isLargeScreen ? 4 : 2,
+            crossAxisSpacing: 20,
+            mainAxisSpacing: 20,
+            childAspectRatio: isLargeScreen ? 1.5 : 1.15,
+            children: [
+              _buildCleanMenuItem(
+                label: 'تسجيل بيع',
+                icon: Icons.add_shopping_cart_rounded,
+                baseColor: Colors.green[600]!,
+                onTap: () => Get.to(() => AddSaleScreen(currentUser: controller.currentUser), binding: AddSaleBinding()),
+                isMain: true,
               ),
-            ),
-          ),
-          // 2. طبقة التعتيم (Overlay) المتناسقة مع لون الهوية
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withValues(alpha: 0.6),
-                  AppConfig.primaryColor.withValues(alpha: 0.8), // 👈 استخدام لون الهوية هنا
-                ],
+              _buildCleanMenuItem(
+                label: 'تقرير الشيفت',
+                icon: Icons.receipt_long_rounded,
+                baseColor: Colors.orange[700]!,
+                onTap: () => Get.to(() => ShiftReportScreen(currentUser: controller.currentUser), binding: ShiftReportBinding()),
               ),
-            ),
-          ),
-          // 3. شبكة الأزرار
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: GridView.count(
-                crossAxisCount: isLargeScreen ? 4 : 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                childAspectRatio: isLargeScreen ? 1.6 : 1.2,
-                children: [
-                  _buildMenuItem(
-                    label: 'تسجيل بيع',
-                    icon: Icons.add_shopping_cart_rounded,
-                    color: Colors.greenAccent[700]!,
-                    onTap: () => Get.to(() => AddSaleScreen(currentUser: controller.currentUser), binding: AddSaleBinding()),
-                    isMain: true,
-                  ),
-                  _buildMenuItem(
-                    label: 'تقرير الشيفت',
-                    icon: Icons.receipt_long_rounded,
-                    color: Colors.orangeAccent[400]!,
-                    onTap: () => Get.to(() => ShiftReportScreen(currentUser: controller.currentUser), binding: ShiftReportBinding()),
-                  ),
-                  _buildMenuItem(
-                    label: 'إدارة الشيفتات',
-                    icon: Icons.history_toggle_off_rounded,
-                    color: Colors.redAccent[100]!,
-                    onTap: () => Get.to(
-                            () => ShiftScreen(currentUserName: controller.displayName),
-                        binding: ShiftBinding()
-                    ),
-                  ),
-                  _buildMenuItem(
-                    label: 'المصروفات',
-                    icon: Icons.calculate_rounded,
-                    color: Colors.lightBlueAccent,
-                    onTap: () => Get.to(() => const NetProfitScreen(), binding: CalculatorBinding()),
-                  ),
-                  if (controller.isAdmin) ...[
-                    _buildMenuItem(
-                      label: 'التقرير الشهري',
-                      icon: Icons.calendar_month_rounded,
-                      color: Colors.tealAccent[400]!,
-                      onTap: () => Get.to(() => MonthlyReportScreen(), binding: MonthlyReportBinding()),
-                    ),
-                    _buildMenuItem(
-                      label: 'إدارة المنتجات',
-                      icon: Icons.inventory_2_rounded, // 👈 أيقونة مخزن عامة أنسب للـ Universal POS
-                      color: Colors.amber[200]!,
-                      onTap: () => Get.to(() => const ProductsScreen(), binding: ProductsBinding()),
-                    ),
-                    _buildMenuItem(
-                      label: 'الاحصائيات',
-                      icon: Icons.dashboard_rounded,
-                      color: Colors.blueAccent[100]!,
-                      onTap: () => Get.to(() => const DashboardScreen(), binding: DashboardBinding()),
-                    ),
-                    _buildMenuItem(
-                      label: 'إدارة الموظفين',
-                      icon: Icons.badge_rounded,
-                      color: Colors.purpleAccent[100]!,
-                      onTap: () => Get.to(() => AddEmployeeScreen(currentUser: controller.currentUser), binding: EmployeesBinding()),
-                    ),
-                  ],
-                ],
+              _buildCleanMenuItem(
+                label: 'إدارة الشيفتات',
+                icon: Icons.history_toggle_off_rounded,
+                baseColor: Colors.red[600]!,
+                onTap: () => Get.to(() => ShiftScreen(currentUserName: controller.displayName), binding: ShiftBinding()),
               ),
-            ),
+              _buildCleanMenuItem(
+                label: 'المصروفات',
+                icon: Icons.calculate_rounded,
+                baseColor: Colors.blue[600]!,
+                onTap: () => Get.to(() => const NetProfitScreen(), binding: CalculatorBinding()),
+              ),
+              if (controller.isAdmin) ...[
+                _buildCleanMenuItem(
+                  label: 'التقرير الشهري',
+                  icon: Icons.calendar_month_rounded,
+                  baseColor: Colors.teal[600]!,
+                  onTap: () => Get.to(() => MonthlyReportScreen(), binding: MonthlyReportBinding()),
+                ),
+                _buildCleanMenuItem(
+                  label: 'إدارة المنتجات',
+                  icon: Icons.inventory_2_rounded,
+                  baseColor: Colors.amber[800]!,
+                  onTap: () => Get.to(() => const ProductsScreen(), binding: ProductsBinding()),
+                ),
+                _buildCleanMenuItem(
+                  label: 'الاحصائيات',
+                  icon: Icons.dashboard_rounded,
+                  baseColor: Colors.indigo[600]!,
+                  onTap: () => Get.to(() => const DashboardScreen(), binding: DashboardBinding()),
+                ),
+                _buildCleanMenuItem(
+                  label: 'إدارة الموظفين',
+                  icon: Icons.badge_rounded,
+                  baseColor: Colors.purple[600]!,
+                  onTap: () => Get.to(() => AddEmployeeScreen(currentUser: controller.currentUser), binding: EmployeesBinding()),
+                ),
+              ],
+            ],
           ),
-        ],
+        ),
       ),
       bottomNavigationBar: _buildBottomBar(),
     );
   }
 
-  Widget _buildMenuItem({
+  Widget _buildCleanMenuItem({
     required String label,
     required IconData icon,
-    required Color color,
+    required Color baseColor,
     required VoidCallback onTap,
     bool isMain = false,
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(25),
+      borderRadius: BorderRadius.circular(20),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(25),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.2),
-            width: 1.5,
-          ),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
+              color: Colors.grey.withOpacity(0.12),
               blurRadius: 10,
-              offset: const Offset(0, 5),
+              offset: const Offset(0, 4),
             ),
           ],
+          border: Border.all(color: Colors.grey[200]!, width: 1),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: isMain ? 50 : 38, color: color),
-            const SizedBox(height: 10),
+            Container(
+              padding: EdgeInsets.all(isMain ? 14 : 10),
+              decoration: BoxDecoration(
+                color: baseColor.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: isMain ? 36 : 28, color: baseColor),
+            ),
+            const SizedBox(height: 12),
             Text(
               label,
               style: TextStyle(
-                fontSize: isMain ? 18 : 15,
+                fontSize: isMain ? 16 : 14,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
-                shadows: const [Shadow(color: Colors.black45, blurRadius: 4)],
+                color: Colors.grey[800],
               ),
               textAlign: TextAlign.center,
             ),
@@ -203,22 +174,18 @@ class HomeScreen extends GetView<HomeController> {
 
   Widget _buildBottomBar() {
     return Container(
-      height: 60,
+      height: 55,
       decoration: BoxDecoration(
-        color: AppConfig.primaryColor.withValues(alpha: 0.95), // 👈 ديناميكي متوافق مع لون السيستم الرئيسي
+        color: AppConfig.system,
         borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(30),
-          topRight: Radius.circular(30),
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
         ),
       ),
       child: Center(
         child: Text(
           'مرحباً بك: ${controller.displayName}',
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
+          style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
         ),
       ),
     );
@@ -243,7 +210,6 @@ class HomeScreen extends GetView<HomeController> {
       buttonColor: Colors.red[700],
       onConfirm: () async {
         Get.back();
-
         Get.showOverlay(
           asyncFunction: () => DatabaseHelper.instance.clearAllTransactionsData(),
           loadingWidget: Center(child: CircularProgressIndicator(color: AppConfig.primaryColor)),

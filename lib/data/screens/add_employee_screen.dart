@@ -309,7 +309,7 @@ class AddEmployeeScreen extends GetView<EmployeesController> {
                   height: 56,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF3E2723),
+                      backgroundColor: AppConfig.system,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     ),
 

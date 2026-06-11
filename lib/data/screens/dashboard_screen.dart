@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:get/get.dart';
+import '../constants/app_config.dart';
 import '../controllers/dashboard_controller.dart';
 
 // الشاشة الرئيسية لعرض الإحصائيات (خاصة بالإدارة فقط)
@@ -20,7 +21,7 @@ class DashboardScreen extends GetView<DashboardController> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
-        backgroundColor: Colors.brown[800],
+        backgroundColor: AppConfig.system,
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [_buildFilterHeader()],
@@ -86,7 +87,7 @@ class DashboardScreen extends GetView<DashboardController> {
             ),
             child: DropdownButton<int>(
               value: controller.selectedMonth.value,
-              dropdownColor: Colors.brown[700],
+              dropdownColor: AppConfig.system,
               style: const TextStyle(color: Colors.white),
               underline: const SizedBox(),
               icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
@@ -111,7 +112,7 @@ class DashboardScreen extends GetView<DashboardController> {
             ),
             child: DropdownButton<int>(
               value: controller.selectedYear.value,
-              dropdownColor: Colors.brown[700],
+              dropdownColor: AppConfig.system,
               style: const TextStyle(color: Colors.white),
               underline: const SizedBox(),
               icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
@@ -323,7 +324,7 @@ class DashboardScreen extends GetView<DashboardController> {
                     barRods: [
                       BarChartRodData(
                         toY: e.total,
-                        color: Colors.brown[400],
+                        color: AppConfig.system,
                         width: 8,
                         borderRadius: BorderRadius.circular(4),
                       ),
@@ -375,7 +376,7 @@ class DashboardScreen extends GetView<DashboardController> {
               contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
               title: Text(product.productName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14.5)),
               subtitle: Text('${product.totalQuantity} ${product.unitType}', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-              trailing: Text('${product.totalAmount} ج.م', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.brown)),
+              trailing: Text('${product.totalAmount} ج.م', style: TextStyle(fontWeight: FontWeight.bold, color:AppConfig.system)),
             );
           }),
         ],

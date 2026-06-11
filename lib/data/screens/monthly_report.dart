@@ -22,7 +22,7 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
       backgroundColor: const Color(0xFFF8F5F2),
       appBar: AppBar(
         title: const Text('التقرير الشهري المتقدم', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: AppConfig.primaryColor,
+        backgroundColor: AppConfig.system,
         foregroundColor: Colors.white,
         centerTitle: true,
         actions: [
@@ -34,7 +34,7 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
         ],
       ),
       body: Obx(() {
-        if (controller.isLoading.value) return Center(child: CircularProgressIndicator(color: AppConfig.primaryColor));
+        if (controller.isLoading.value) return Center(child: CircularProgressIndicator(color: AppConfig.system));
         if (controller.errorMessage.isNotEmpty) return _buildError();
 
         return SingleChildScrollView(
@@ -71,7 +71,7 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
             ),
             child: DropdownButton<int>(
               value: controller.selectedMonth.value,
-              dropdownColor: AppConfig.primaryColor,
+              dropdownColor: AppConfig.system,
               style: const TextStyle(color: Colors.white),
               underline: const SizedBox(),
               icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
@@ -93,7 +93,7 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
             ),
             child: DropdownButton<int>(
               value: controller.selectedYear.value,
-              dropdownColor: AppConfig.primaryColor,
+              dropdownColor: AppConfig.system,
               style: const TextStyle(color: Colors.white),
               underline: const SizedBox(),
               icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
@@ -163,7 +163,6 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
                 controller: controller.productNameCtrl,
                 label: 'اسم المنتج المشتري / المصروف',
                 icon: Icons.inventory,
-                hint: 'مثال: بن يمني سادة',
               ),
               const SizedBox(height: 12),
               _buildCategoryDropdown(),
@@ -414,7 +413,6 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
       ),
     );
   }
-
   Widget _buildError() => Center(
     child: Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -501,7 +499,7 @@ class _PaginatedTable extends StatelessWidget {
       child: Column(
         children: [
           DataTable(
-            headingRowColor: WidgetStateProperty.all(AppConfig.primaryColor.withValues(alpha: 0.8)),
+            headingRowColor: WidgetStateProperty.all(Colors.green),
             columnSpacing: 25,
             columns: const [
               DataColumn(label: Text('الصنف', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
