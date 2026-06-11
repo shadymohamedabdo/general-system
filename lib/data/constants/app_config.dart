@@ -24,7 +24,7 @@ class AppConfig {
   static const Color primaryColor = Colors.brown; // 👈 اللون الأساسي (Teal للصيدلية، Blue للماركت)
   static final Color primaryColorDark = Colors.brown.shade800; // الدرجة الغامقة للأزرار
   static final Color lightBackground = Colors.brown.shade50;  // لون خلفية الحقول والـ Dropdowns
-  static final Color system = Colors.brown;
+  static final Color system =  Colors.brown;
 
   // ==========================================
   // 4️⃣ أيقونة النشاط الأساسية (Icons)

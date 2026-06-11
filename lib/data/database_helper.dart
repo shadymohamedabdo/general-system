@@ -94,8 +94,8 @@ class DatabaseHelper {
       CREATE TABLE products (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT,
-        category TEXT, -- هيفضل نص عشان يتوافق مع كودك الحالي بس قيمته هتيجي من جدول الـ categories
-        unit TEXT,     -- هيفضل نص وقيمته هتيجي من جدول الـ units
+        category TEXT, 
+        unit TEXT,     
         price REAL,
         cost_price REAL DEFAULT 0,
         initial_stock REAL DEFAULT 0.0
@@ -181,25 +181,21 @@ class DatabaseHelper {
 
     await _createDefaultAdmin(db);
     await _initSecurityTable(db);
-    await _insertDefaultCategoriesAndUnits(db); // 👈 بذر البيانات الافتراضية
+    await _insertDefaultCategoriesAndUnits(db);
   }
 
-  // دالة بذر البيانات المبدئية عشان السيستم ميبقاش فاضي أول ما يفتح
   Future<void> _insertDefaultCategoriesAndUnits(Database db) async {
-    // إضافة أقسام افتراضية تناسب الوضع الحالي (كافيه)
     List<String> defaultCategories = ['بن', 'مشروب', 'أكل سريع / أخرى'];
     for (var cat in defaultCategories) {
       await db.insert('categories', {'name': cat}, conflictAlgorithm: ConflictAlgorithm.ignore);
     }
 
-    // إضافة وحدات افتراضية
     List<String> defaultUnits = ['كيلو', 'كوب', 'قطعة', 'علبة', 'شريط'];
     for (var unit in defaultUnits) {
       await db.insert('units', {'name': unit}, conflictAlgorithm: ConflictAlgorithm.ignore);
     }
   }
 
-  // 🧹 دالة تصفير النظام بالكامل
   Future<void> clearAllTransactionsData() async {
     final db = await database;
     await db.transaction((txn) async {
@@ -270,8 +266,6 @@ class DatabaseHelper {
         await db.execute("ALTER TABLE app_security ADD COLUMN device_serial TEXT DEFAULT ''");
       } catch (e) {}
     }
-
-    // 🆕 الترقية للإصدار 16 (إنشاء الجداول الجديدة في الأجهزة الحالية دون مسح أي شيء)
     if (oldVersion < 16) {
       try {
         await db.execute('''
@@ -286,7 +280,6 @@ class DatabaseHelper {
             name TEXT NOT NULL UNIQUE
           )
         ''');
-        // ملء الجداول بالبيانات الافتراضية للعميل القديم عشان برنامجه ميعطلش
         await _insertDefaultCategoriesAndUnits(db);
       } catch (e) {}
     }
@@ -304,37 +297,22 @@ class DatabaseHelper {
       });
     }
   }
-  /// دالة مركزية للتحقق من كود التفعيل اليومي بالتاريخ الكامل
-  bool verifyDailyActivationCode(String inputCode) {
-    // 1️⃣ تنظيف النص
-    String cleanedInput = inputCode.trim().replaceAll(' ', '').toLowerCase();
-
-    // 2️⃣ توليد شفرة اليوم الحالي
-    final now = DateTime.now();
-    final String dayStr = now.day.toString().padLeft(2, '0');
-    final String monthStr = now.month.toString().padLeft(2, '0');
-    final String yearStr = now.year.toString();
-
-    final String dynamicDailyPassword = "shady112001$dayStr$monthStr$yearStr";
-
-
-    // 3️⃣ المقارنة
-    return cleanedInput.isNotEmpty && cleanedInput == dynamicDailyPassword;
-  }
 
   Future<void> _initSecurityTable(Database db) async {
     final result = await db.query('app_security');
     if (result.isEmpty) {
       String nowStr = DateTime.now().toIso8601String();
+      String currentSerial = await getWindowsSerial();
       await db.insert('app_security', {
         'trial_start': nowStr,
         'last_opened': nowStr,
         'is_activated': 0,
-        'device_serial': '',
+        'device_serial': currentSerial,
       });
     }
   }
 
+  /// 🛠️ دالة جلب السيريال الفريد للـ Motherboard وجهاز الويندوز برمجياً
   Future<String> getWindowsSerial() async {
     try {
       final deviceInfo = DeviceInfoPlugin();
@@ -346,10 +324,98 @@ class DatabaseHelper {
     }
   }
 
-  Future<Map<String, dynamic>?> getSecurityData() async {
+  /// 🧠 فحص حالة الأمان وإدارة الأسبوع التجريبي (7 أيام) ومنع التلاعب بالتاريخ
+  Future<String> checkSystemSecurityStatus() async {
+    final db = await database;
+    String currentWindowsSerial = await getWindowsSerial();
+
+    final List<Map<String, dynamic>> res = await db.query('app_security', limit: 1);
+    if (res.isEmpty) {
+      await _initSecurityTable(db);
+      return "TRIAL_ACTIVE";
+    }
+
+    final securityData = res.first;
+    String savedSerial = securityData['device_serial'] ?? '';
+    int isActivated = securityData['is_activated'] ?? 0;
+    String lastOpenedStr = securityData['last_opened'] ?? '';
+
+    // 🎯 كشف النقل (لو أخد الداتابيز من جهاز قديم وحطها على جهاز جديد)
+    if (savedSerial.isNotEmpty && savedSerial != currentWindowsSerial) {
+      String nowStr = DateTime.now().toIso8601String();
+
+      // تصفير التفعيل فوراً وبدء أسبوع تجريبي جديد خاص بالبوردة الجديدة!
+      await db.update('app_security', {
+        'trial_start': nowStr,
+        'last_opened': nowStr,
+        'is_activated': 0,
+        'device_serial': currentWindowsSerial,
+      }, where: 'id = ?', whereArgs: [1]);
+
+      return "TRIAL_ACTIVE";
+    }
+
+    // 🔒 كشف التلاعب بالساعة
+    DateTime now = DateTime.now();
+    if (lastOpenedStr.isNotEmpty) {
+      DateTime lastOpened = DateTime.parse(lastOpenedStr);
+      if (now.isBefore(lastOpened)) {
+        return "TIME_TAMPERED";
+      }
+    }
+
+    // لو النسخة متفعلة رسمي مدى الحياة.. يفتح فوراً
+    if (isActivated == 1) {
+      await updateLastOpenedTime(now.toIso8601String());
+      return "ACTIVATED_FULL";
+    }
+
+    // حساب فترة الـ 7 أيام التجريبية
+    DateTime trialStart = DateTime.parse(securityData['trial_start']);
+    int daysPassed = now.difference(trialStart).inDays;
+
+    if (daysPassed >= 7 || daysPassed < 0) {
+      return "EXPIRED";
+    } else {
+      await updateLastOpenedTime(now.toIso8601String());
+      return "TRIAL_ACTIVE";
+    }
+  }
+
+  /// دالة مركزية للتحقق من كود التفعيل اليومي بالتاريخ الكامل
+  bool verifyDailyActivationCode(String inputCode) {
+    String cleanedInput = inputCode.trim().replaceAll(' ', '').toLowerCase();
+
+    final now = DateTime.now();
+    final String dayStr = now.day.toString().padLeft(2, '0');
+    final String monthStr = now.month.toString().padLeft(2, '0');
+    final String yearStr = now.year.toString();
+
+    final String dynamicDailyPassword = "shady112001$dayStr$monthStr$yearStr";
+
+    return cleanedInput.isNotEmpty && cleanedInput == dynamicDailyPassword;
+  }
+
+  // 🛑 درع حماية الأدمن الرئيسي: يمنع تماماً حذف حساب شادي ويستقبل الباراميترين بشكل صحيح
+  Future<int> deleteUser(int userId, String username) async {
+    // التحقق الصارم بالاسم: لو اليوزر نيم هو shady، ارفض الحذف فوراً ورجّع صفر للـ Controller
+    if (username.trim().toLowerCase() == 'shady') {
+      print("🚨 محاولة محظورة لحذف الأدمن الرئيسي المالك للنظام!");
+      return 0; // 0 تعني لم يتم حذف أي سطر لحماية الحساب من المسح
+    }
+
+    final db = await database;
+    return await db.delete(
+      'users',
+      where: 'id = ?',
+      whereArgs: [userId],
+    );
+  }
+
+  Future<Map<String, dynamic>> getSecurityData() async {
     final db = await database;
     final res = await db.query('app_security', limit: 1);
-    return res.isNotEmpty ? res.first : null;
+    return res.isNotEmpty ? res.first : {};
   }
 
   Future<void> updateLastOpenedTime(String nowStr) async {

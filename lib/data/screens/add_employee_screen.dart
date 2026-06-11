@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../constants/app_config.dart';
 import '../controllers/employees_controller.dart';
 import 'manage.dart';
 
@@ -24,27 +25,28 @@ class AddEmployeeScreen extends GetView<EmployeesController> {
 
       // 🔝 الـ AppBar
       appBar: AppBar(
+        actions: [
+          IconButton(
+              icon: const Icon(Icons.manage_accounts, color: Colors.white),
+              onPressed: () {
+                Get.to (() => const MangeScreen());
+              }
+          ),
+        ],
+
         title: const Text(
           'إدارة فريق العمل',
           style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.manage_accounts, color: Colors.white),
-            onPressed: () {
-              Get.to (() => const MangeScreen());
-            }
-          ),
-        ],
         centerTitle: true,
-        backgroundColor: const Color(0xFF3E2723),
+        backgroundColor: AppConfig.system,
         foregroundColor: Colors.white,
         elevation: 0,
       ),
 
       // ➕ زر إضافة موظف
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: const Color(0xFF3E2723),
+        backgroundColor: AppConfig.system,
         icon: const Icon(Icons.person_add, color: Colors.white),
         label: const Text('موظف جديد', style: TextStyle(color: Colors.white)),
         onPressed: _showAddBottomSheet,
@@ -197,8 +199,8 @@ class AddEmployeeScreen extends GetView<EmployeesController> {
           ],
         ),
 
-        // 🗑️ زر الحذف (مش لنفسك)
-        trailing: isMe
+// 🗑️ زر الحذف (يختفي لنفسك ويختفي تماماً لحساب المطور الأساسي)
+        trailing: isMe || emp['username'].toString().toLowerCase() == 'shady'
             ? null
             : IconButton(
           icon: const Icon(Icons.delete_outline, color: Colors.red, size: 26),
@@ -437,8 +439,8 @@ class AddEmployeeScreen extends GetView<EmployeesController> {
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
                 ),
                 onPressed: () async {
-                  // تنفيذ الحذف في قاعدة البيانات
-                  await controller.deleteUser(emp['id']);
+                  // تمرير الـ emp بالكامل بدلاً من emp['id'] لفحص الحماية
+                  await controller.deleteUser(emp);
 
                   // قفل الديالوج بآمان عن طريق الـ Navigator المحلي
                   if (context.mounted) {

@@ -65,8 +65,17 @@ class EmployeesController extends GetxController {
     }).toList();
   }
 
-  // ✨ حذف موظف (معدلة ومضمونة 100%)
-  Future<void> deleteUser(int id) async {
+// ✨ حذف موظف (معدلة ومؤمنة لمنع حذف حساب المطور)
+  Future<void> deleteUser(Map<String, dynamic> emp) async {
+    final int id = emp['id'];
+    final String username = (emp['username'] ?? '').toString().toLowerCase();
+
+    // 🛡️ حماية صخرية: منع حذف حساب المطور نهائياً من الـ Controller
+    if (username == 'shady') {
+      AppSnackbar.error("غير مسموح بحذف حساب مطور النظام الأساسي");
+      return;
+    }
+
     try {
       isDeleting(true);
 
@@ -84,8 +93,8 @@ class EmployeesController extends GetxController {
       isDeleting(false);
     }
   }
-  // إضافة موظف جديد
-// إضافة موظف جديد (مؤمنة بالكامل)
+
+// إضافة موظف جديد (مؤمنة بالكامل وضد تكرار حساب المطور)
   Future<bool> addNewUser(String name, String user, String pass, String role) async {
     final cleanName = name.trim();
     final cleanUser = user.trim();
@@ -96,7 +105,13 @@ class EmployeesController extends GetxController {
       return false;
     }
 
-    // 🔥 تعديل: نتحقق من عدم التكرار مع الموظفين النشطين فقط (الذين لم يتم أرشفة حسابهم)
+    // 🛡️ حماية صخرية: منع استخدام اسم المستخدم الخاص بالمطور
+    if (cleanUser.toLowerCase() == 'shady') {
+      AppSnackbar.error("اسم المستخدم هذا محجوز كأدمن للنظام ولا يمكن تكراره");
+      return false;
+    }
+
+    // التحقق من عدم التكرار مع الموظفين النشطين
     if (employees.any((e) =>
     e['role'] != 'archived' &&
         e['username'].toString().toLowerCase() == cleanUser.toLowerCase())) {

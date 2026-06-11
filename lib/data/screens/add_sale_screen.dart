@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
@@ -261,67 +262,87 @@ class AddSaleScreen extends GetView<SalesController> {
 
   Future<void> _printInvoice(List<CartItem> items, double total) async {
     final pdf = pw.Document();
-    final arabicFont = await PdfGoogleFonts.cairoRegular();
-    final now = DateTime.now().toLocal();
 
+    // 🔴 التعديل الأساسي: بنحمل الخط من الـ assets اللي أنت ضفتها أوفلاين
+    final fontData = await rootBundle.load("assets/fonts/Cairo-Regular.ttf");
+    final arabicFont = pw.Font.ttf(fontData);
+
+    final now = DateTime.now().toLocal();
     final dateStr = DateFormat('yyyy-MM-dd').format(now);
     final timeStr = DateFormat('HH:mm').format(now);
 
+    // 1. تعديل العرض المساحي الفعلي للطباعة لـ 72 مم بدل 80 عشان نمنع تآكل الجوانب
+    const customRoll80 = PdfPageFormat(
+      72 * PdfPageFormat.mm,
+      double.infinity,
+      marginTop: 0,
+      marginBottom: 0,
+      marginLeft: 0,
+      marginRight: 0,
+    );
+
     pdf.addPage(
       pw.Page(
-        pageFormat: PdfPageFormat.roll80,
+        pageFormat: customRoll80,
         build: (context) => pw.Directionality(
           textDirection: pw.TextDirection.rtl,
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Center(
-                child: pw.Text(
-                  AppConfig.businessName, // 👈 طباعة اسم النشاط ديناميكياً
-                  style: pw.TextStyle(font: arabicFont, fontSize: 18, fontWeight: pw.FontWeight.bold),
-                ),
-              ),
-              pw.SizedBox(height: 5),
-              pw.Center(
-                child: pw.Text(
-                  'فاتورة مبيعات',
-                  style: pw.TextStyle(font: arabicFont, fontSize: 14, fontWeight: pw.FontWeight.bold),
-                ),
-              ),
-              pw.SizedBox(height: 10),
-
-              pw.Text('التاريخ: $dateStr', style: pw.TextStyle(font: arabicFont, fontSize: 10)),
-              pw.Text('الوقت: $timeStr', style: pw.TextStyle(font: arabicFont, fontSize: 10)),
-              pw.Text('الكاشير: ${currentUser['name']}', style: pw.TextStyle(font: arabicFont, fontSize: 10)),
-              pw.Divider(thickness: 1),
-
-              ...items.map((item) {
-                final description = _formatItemDescription(item);
-                return pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(vertical: 3),
+          child: pw.Padding(
+            // 2. زيادة الهامش الجانبي لـ 6 مم عشان نلم الكلام كله في النص بعيد عن الحافة
+            padding: const pw.EdgeInsets.symmetric(horizontal: 6 * PdfPageFormat.mm, vertical: 2 * PdfPageFormat.mm),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Center(
                   child: pw.Text(
-                    description,
-                    style: pw.TextStyle(font: arabicFont, fontSize: 11, fontWeight: pw.FontWeight.bold),
+                    'محل بن الشيخ الاصلي المحطه',
+                    style: pw.TextStyle(font: arabicFont, fontSize: 14, fontWeight: pw.FontWeight.bold),
                   ),
-                );
-              }),
+                ),
+                pw.SizedBox(height: 5),
+                pw.Center(
+                  child: pw.Text(
+                    'فاتورة مبيعات',
+                    style: pw.TextStyle(font: arabicFont, fontSize: 13, fontWeight: pw.FontWeight.bold),
+                  ),
+                ),
+                pw.SizedBox(height: 10),
 
-              pw.Divider(thickness: 1),
+                pw.Text('التاريخ: $dateStr', style: pw.TextStyle(font: arabicFont, fontSize: 10)),
+                pw.Text('الوقت: $timeStr', style: pw.TextStyle(font: arabicFont, fontSize: 10)),
+                pw.Text('الكاشير: ${currentUser['name']}', style: pw.TextStyle(font: arabicFont, fontSize: 10)),
+                pw.Divider(thickness: 1),
 
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('الإجمالي:', style: pw.TextStyle(font: arabicFont, fontWeight: pw.FontWeight.bold, fontSize: 13)),
-                  pw.Text('${total.toStringAsFixed(0)} ج.م',
-                      style: pw.TextStyle(font: arabicFont, fontWeight: pw.FontWeight.bold, fontSize: 14)),
-                ],
-              ),
+                ...items.map((item) {
+                  final description = _formatItemDescription(item);
+                  return pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(vertical: 3),
+                    child: pw.Text(
+                      description,
+                      style: pw.TextStyle(font: arabicFont, fontSize: 10, fontWeight: pw.FontWeight.bold),
+                    ),
+                  );
+                }),
 
-              pw.SizedBox(height: 15),
-              pw.Center(
-                child: pw.Text('شكراً لزيارتكم', style: pw.TextStyle(font: arabicFont, fontSize: 11)),
-              ),
-            ],
+                pw.Divider(thickness: 1),
+
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('الإجمالي:', style: pw.TextStyle(font: arabicFont, fontWeight: pw.FontWeight.bold, fontSize: 12)),
+                    pw.Text('${total.toStringAsFixed(0)} ج.م',
+                        style: pw.TextStyle(font: arabicFont, fontWeight: pw.FontWeight.bold, fontSize: 13)),
+                  ],
+                ),
+
+                pw.SizedBox(height: 15),
+                pw.Center(
+                  child: pw.Text('شكراً لزيارتكم', style: pw.TextStyle(font: arabicFont, fontSize: 11)),
+                ),
+
+                // سطر أمان إضافي للقص من تحت طالما التعريف تالف
+                pw.SizedBox(height: 25 * PdfPageFormat.mm),
+              ],
+            ),
           ),
         ),
       ),
@@ -331,7 +352,7 @@ class AddSaleScreen extends GetView<SalesController> {
       await Printing.layoutPdf(
         onLayout: (format) async => pdf.save(),
         name: 'receipt_${DateTime.now().millisecondsSinceEpoch}',
-        format: PdfPageFormat.roll80,
+        format: customRoll80,
       );
       AppSnackbar.success("تم طباعة الفاتورة بنجاح");
     } catch (e) {
