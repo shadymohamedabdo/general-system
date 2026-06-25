@@ -45,9 +45,10 @@ class MonthlyReportController extends GetxController {
   // 🆕 قوائم ديناميكية للفئات والوحدات بدلاً من القيم الثابتة
   var categories = <String>[].obs;
   var unitsList = <String>[].obs;
-
-  var selectedCategory = RxnString();
-  var selectedUnit = RxnString();
+  var selectedCategory = 'بن'.obs;
+  var selectedUnit = 'كيلو'.obs;
+  // var selectedCategory = RxnString();
+  // var selectedUnit = RxnString();
 
   // الـ Pagination للمشتريات
   var currentPage = 1.obs;
@@ -251,25 +252,22 @@ class MonthlyReportController extends GetxController {
       return;
     }
 
+    // 🔥 تم التعديل لتصبح القراءة من حقل الإجمالي التلقائي المباشر
     final totalCost = double.tryParse(totalCostCtrl.text) ?? 0;
     if (totalCost <= 0) {
       AppSnackbar.warning("القيمة الإجمالية يجب أن تكون أكبر من صفر (تأكد من إدخال السعر)");
       return;
     }
 
-    if (selectedUnit.value == null) {
-      AppSnackbar.warning("يرجى اختيار وحدة قياس");
-      return;
-    }
-
+    // سعر الوحدة الواحدة جاهز ومقروء من حقل السعر الذي أدخله المستخدم
     final pricePerUnit = double.tryParse(costPerUnitCtrl.text) ?? 0;
 
     try {
       final purchase = PurchaseItem(
         productName: productNameCtrl.text.trim(),
         quantity: quantity,
-        unit: selectedUnit.value!,
-        costPerUnit: pricePerUnit,
+        unit: selectedUnit.value,
+        costPerUnit: pricePerUnit, // نمرر سعر الوحدة الصافي للداتابيز بآمان
         month: selectedMonth.value,
         year: selectedYear.value,
       );

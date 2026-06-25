@@ -7,74 +7,74 @@ import '../repositories/purchases_repository.dart';
 import '../repositories/reports_repository.dart';
 
 class ProductsController extends GetxController {
+
+  // 🗄️ instance من الداتابيز
   final dbHelper = DatabaseHelper.instance;
+
+  // 📦 repository خاص بالمشتريات
   final _purchasesRepo = PurchasesRepository();
+
+  // 📊 repository خاص بالتقارير (المبيعات)
   final _reportsRepo = ReportsRepository();
 
+  // 🎯 controllers للـ TextFields
   final nameCtrl = TextEditingController();
   final priceCtrl = TextEditingController();
   final searchCtrl = TextEditingController();
-  final stockCtrl = TextEditingController(text: '0');
+  final TextEditingController stockCtrl = TextEditingController(text: '0'); // حقل كمية المصنع الجديد
 
-  // 🆕 قوائم ديناميكية لجلب الفئات والوحدات من الداتابيز
-  var categoriesList = <String>[].obs;
-  var unitsList = <String>[].obs;
+  // 📌 الحالة الحالية للفلاتر
+  var selectedCategory = 'بن'.obs;         // نوع المنتج
+  var selectedTabCategory = 'الكل'.obs;    // التبويب الحالي
+  var selectedUnit = 'كيلو'.obs;           // وحدة القياس
 
-  // 📌 الحالة الحالية المحدثة ديناميكياً
-  var selectedCategory = RxnString();
-  var selectedTabCategory = 'الكل'.obs;
-  var selectedUnit = RxnString();
-
+  // 📋 كل المنتجات + المنتجات بعد الفلترة
   var allProducts = <Product>[].obs;
   var filteredProducts = <Product>[].obs;
 
+  // 🆕 أسماء منتجات متاحة (جاية من المشتريات ومش مضافة كمنتج)
   var availableProductNames = <String>[].obs;
   var selectedProductName = ''.obs;
 
+  // 📦 رصيد كل منتج النهائي (المشتريات أو بضاعة الجرد - المبيعات)
   var productStock = <int, double>{}.obs;
 
   @override
   void onInit() {
     super.onInit();
-    loadProducts();
+    loadProducts(); // 🚀 تحميل البيانات أول ما الكنترولر يشتغل
   }
 
-  // 🔄 تحميل المنتجات والفئات والوحدات معاً
+  // 🔄 تحميل كل المنتجات من الداتابيز
   Future<void> loadProducts() async {
     final db = await dbHelper.database;
 
-    // 📥 1. جلب الفئات والوحدات الديناميكية من الجداول الجديدة
-    final catData = await db.query('categories');
-    final unitData = await db.query('units');
-
-    categoriesList.assignAll(catData.map((e) => e['name'] as String).toList());
-    unitsList.assignAll(unitData.map((e) => e['name'] as String).toList());
-
-    // تعيين قيم مبدئية ذكية في حقول الإضافة إذا كانت فارغة
-    if (selectedCategory.value == null && categoriesList.isNotEmpty) {
-      selectedCategory.value = categoriesList.first;
-    }
-    if (selectedUnit.value == null && unitsList.isNotEmpty) {
-      selectedUnit.value = unitsList.first;
-    }
-
-    // 📥 2. قراءة المنتجات من الجدول وتحويلها لـ model
+    // 📥 قراءة المنتجات من الجدول
     final maps = await db.query('products');
+
+    // 🔄 تحويل البيانات لـ model
     allProducts.assignAll(maps.map((e) => Product.fromMap(e)).toList());
 
+    // 🧠 تحميل الأسماء المتاحة (لازم قبل الأرصدة)
     await loadAvailableProductNames();
+
+    // 📊 حساب الرصيد لكل منتج
     await loadProductBalances();
+
+    // 🔍 تطبيق الفلترة
     applyFilters(searchCtrl.text);
   }
 
-  // 📊 حساب الرصيد الذكي بالاعتماد على الفئات والوحدات المرنة
-// 📊 حساب الرصيد الذكي بالاعتماد على حركة المشتريات والمبيعات
+  // 📊 حساب الرصيد الذكي: يمنع الجمع التلقائي ويلتزم باقتراحك بالملي
+// 📊 حساب الرصيد الذكي: يدمج المشتريات الخارجية مع بضاعة المصنع المباشرة بدقة
   Future<void> loadProductBalances() async {
     try {
       final now = DateTime.now();
+
       final purchases = await _purchasesRepo.getPurchasesForMonth(now.month, now.year);
       final sales = await _reportsRepo.getMonthlySalesGroupedByProduct(now.month, now.year);
 
+      // تجميع المشتريات بناءً على اسم المنتج للشهر الحالي
       Map<String, double> purchasedQuantity = {};
       for (var p in purchases) {
         purchasedQuantity[p.productName.trim().toLowerCase()] =
@@ -84,34 +84,34 @@ class ProductsController extends GetxController {
       final Map<int, double> newStock = {};
 
       for (var product in allProducts) {
-        if (product.id == null) continue;
+        if (product.id == null) continue; // حماية
 
         String pNameNormalized = product.name.trim().toLowerCase();
 
-        double purchased = purchasedQuantity[pNameNormalized] ?? 0.0;
-        double manualStock = product.initialStock ?? 0.0;
-
-        // إجمالي الكمية الواردة (سواء من المشتريات أو الإدخال اليدوي)
-        double totalIncoming = purchased > 0 ? purchased : manualStock;
-
-        // 🎯 التعديل السحري هنا:
-        // لو مفيش مشتريات نزلت للمنتج ده، وكمان أنت مش مدخل له كمية بايدك (يعنيtotalIncoming = 0)
-        // وكمان مش تبع قسم "بن" (لأن البن لازم يتحسب دايماً بوزنه)، يبقى ده رصيد مفتوح!
-        if (totalIncoming == 0.0 && product.category != 'بن') {
-          newStock[product.id!] = 999.0; // كود رمزي للرصيد المفتوح
+        if (product.category == 'مشروب' || product.category == 'أكل سريع') {
+          newStock[product.id!] = 999.0; // أرصدة مفتوحة للمشروبات والوجبات
         } else {
-          // حساب الحسبة العادية للمنتجات المحددة بالكمية
+          double purchased = purchasedQuantity[pNameNormalized] ?? 0;
+          double manualStock = product.initialStock ?? 0.0;
+
+          // ✨ التعديل الجوهري: إجمالي الداخل = المشتريات الخارجية + كمية المصنع اليدوية
+          double totalIncoming = purchased + manualStock; // 10 مشتريات + 20 مصنع = 30 كيلو داخلي
+
           double sold = sales[product.name] ?? 0;
           double remaining = totalIncoming - sold;
 
+          // حفظ الرصيد الفعلي (المتبقي) مع منع الأرقام السالبة
           newStock[product.id!] = remaining > 0 ? remaining : 0.0;
         }
       }
+
       productStock.value = newStock;
+
     } catch (e) {
       AppSnackbar.error("خطأ في حساب الأرصدة: $e");
     }
   }
+  // 🎯 تحميل الأسماء للمساعدة فقط
   Future<void> loadAvailableProductNames() async {
     try {
       final purchases = await _purchasesRepo.getAllPurchases();
@@ -124,25 +124,24 @@ class ProductsController extends GetxController {
       if (selectedProductName.value.isEmpty && availableProductNames.isNotEmpty) {
         selectedProductName.value = availableProductNames.first;
       }
-    } catch (e) {}
-  }
-
-  // 🔄 تغيير التصنيف يدوياً وتحديث الوحدة التلقائية الذكية إذا لزم الأمر
-  void changeCategory(String category) {
-    selectedCategory.value = category;
-    // تخصيص ذكي مرن للوحدة إذا كانت تابعة لنظام الأوزان
-    if (category == 'بن' && unitsList.contains('كيلو')) {
-      selectedUnit.value = 'كيلو';
-    } else if (category == 'مشروب' && unitsList.contains('كوب')) {
-      selectedUnit.value = 'كوب';
+    } catch (e) {
+      // خطأ صامت
     }
   }
 
+  // 🔄 تغيير التصنيف + تغيير الوحدة تلقائي
+  void changeCategory(String category) {
+    selectedCategory.value = category;
+    selectedUnit.value = (category == 'بن') ? 'كيلو' : (category == 'مشروب') ? 'كوب' : 'قطعة';
+  }
+
+  // 📂 تغيير التبويب
   void updateTabFilter(String category) {
     selectedTabCategory.value = category;
     applyFilters(searchCtrl.text);
   }
 
+  // 🔍 تطبيق الفلترة (حسب التبويب + البحث)
   void applyFilters(String query) {
     List<Product> results = allProducts;
 
@@ -158,22 +157,22 @@ class ProductsController extends GetxController {
     filteredProducts.assignAll(results);
   }
 
-  // ➕ إضافة أو تحديث منتج ببيانات ديناميكية كاملة
+  // ➕ إضافة أو تحديث منتج جديد بدون فرض قيم الـ 50 الإجبارية
   Future<void> addProduct() async {
+
     if (nameCtrl.text.trim().isEmpty || priceCtrl.text.trim().isEmpty) {
       AppSnackbar.warning("برجاء ملء اسم المنتج وسعر البيع");
-      return;
-    }
-    if (selectedCategory.value == null || selectedUnit.value == null) {
-      AppSnackbar.warning("برجاء تحديد القسم والوحدة أولاً");
       return;
     }
 
     String name = nameCtrl.text.trim();
     double price = double.tryParse(priceCtrl.text.trim()) ?? 0.0;
     double inputStock = double.tryParse(stockCtrl.text.trim()) ?? 0.0;
-    String category = selectedCategory.value!;
-    String safeUnit = selectedUnit.value!;
+    String category = selectedCategory.value;
+    String safeUnit = (category == 'بن') ? 'كيلو' : (category == 'مشروب') ? 'كوب' : 'قطعة';
+
+    // ⚡ إلغاء فرض القيمة 50: لو المستخدم سابها صفر أو فاضية، تفضل صفر والسيستم يعتمد على فواتير المشتريات
+    // تم حذف شرط فرض الـ 50 القديم هنا تماماً
 
     try {
       final db = await dbHelper.database;
@@ -183,12 +182,13 @@ class ProductsController extends GetxController {
         whereArgs: [name.toLowerCase(), category],
       );
 
-      const String stockColumn = 'initial_stock';
+      const String stockColumn = 'initial_stock'; // الحفاظ على اسم العمود الفعلي
 
       if (existingProducts.isNotEmpty) {
         var firstProduct = existingProducts.first;
         int id = firstProduct['id'] as int;
         double currentInitialStock = (firstProduct[stockColumn] as num?)?.toDouble() ?? 0.0;
+
         double updatedStock = currentInitialStock + inputStock;
 
         await db.update(
@@ -208,8 +208,10 @@ class ProductsController extends GetxController {
             await db.delete('products', where: 'id = ?', whereArgs: [duplicateId]);
           }
         }
+
         AppSnackbar.success("تم تحديث كمية المنتج الحالي بنجاح 🎉");
       } else {
+
         await db.insert('products', {
           'name': name,
           'price': price,
@@ -217,9 +219,11 @@ class ProductsController extends GetxController {
           'unit': safeUnit,
           stockColumn: category == 'مشروب' ? 0.0 : inputStock,
         });
+
         AppSnackbar.success("تم إضافة الصنف الجديد للمخزن ✨");
       }
 
+      // 🧹 تنظيف الحقول وإعادة التصفير
       nameCtrl.clear();
       priceCtrl.clear();
       stockCtrl.text = '0';
@@ -249,10 +253,11 @@ class ProductsController extends GetxController {
       applyFilters(searchCtrl.text);
       await loadProductBalances();
     } catch (e) {
-      AppSnackbar.error("حدث خطأ أثناء حفظ المنتج");
+      AppSnackbar.error("حدث خطأ أثناء حفظ المنتج في قاعدة البيانات");
     }
   }
 
+  // 🗑️ حذف منتج
   Future<void> deleteProduct(int id) async {
     try {
       final db = await dbHelper.database;
@@ -265,20 +270,27 @@ class ProductsController extends GetxController {
         await loadProductBalances();
         AppSnackbar.success('تم الحذف بنجاح');
       } else {
-        AppSnackbar.error('فشل الحذف');
+        AppSnackbar.error('فشل الحذف: الرقم $id غير موجود في قاعدة البيانات');
       }
     } catch (e) {
       AppSnackbar.error("حدث خطأ تقني أثناء الحذف");
     }
   }
 
+  // ✏️ تعديل سعر المنتج
   Future<void> updatePrice(int id, double newPrice) async {
     final db = await dbHelper.database;
-    await db.update('products', {'price': newPrice}, where: 'id = ?', whereArgs: [id]);
+
+    await db.update('products',
+        {'price': newPrice},
+        where: 'id = ?',
+        whereArgs: [id]);
 
     int index = allProducts.indexWhere((p) => p.id == id);
+
     if (index != -1) {
       final oldP = allProducts[index];
+
       allProducts[index] = Product(
         id: id,
         name: oldP.name,
@@ -287,14 +299,16 @@ class ProductsController extends GetxController {
         price: newPrice,
         initialStock: oldP.initialStock,
       );
+
       applyFilters(searchCtrl.text);
       AppSnackbar.warning('تم تعديل السعر');
     }
   }
 
+  // 🧹 إعادة تعيين الفورم
   void clearForm() {
     priceCtrl.clear();
-    stockCtrl.text = '0';
+    stockCtrl.text = '0'; // تصفير حقل الكمية عند المسح للسلامة
     if (availableProductNames.isNotEmpty) {
       selectedProductName.value = availableProductNames.first;
       nameCtrl.text = selectedProductName.value;
@@ -302,8 +316,7 @@ class ProductsController extends GetxController {
       selectedProductName.value = '';
       nameCtrl.clear();
     }
-    if (categoriesList.isNotEmpty) selectedCategory.value = categoriesList.first;
-    if (unitsList.isNotEmpty) selectedUnit.value = unitsList.first;
+    selectedCategory.value = 'بن';
   }
 
   @override

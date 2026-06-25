@@ -1,99 +1,97 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import '../constants/app_config.dart';
 import '../controllers/products_controller.dart';
 import '../models/product_model.dart';
 
+/// شاشة إدارة المنتجات والمخزن (مخزن بيت البن)
 class ProductsScreen extends GetView<ProductsController> {
   const ProductsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Obx(() {
-      // ديناميكية بناء الـ Tabs بناء على الأقسام الموجودة في الداتابيز
-      List<String> dynamicTabs = ['الكل', ...controller.categoriesList];
-
-      return DefaultTabController(
-        length: dynamicTabs.length,
-        child: Scaffold(
-          backgroundColor: const Color(0xFFF8F5F2),
-          appBar: AppBar(
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.refresh),
-                onPressed: () => controller.loadProducts(),
-                tooltip: 'تحديث الأرصدة',
-              ),
-            ],
-            title: Text("${AppConfig.businessName} - المخزن",
-                style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1)),
-            centerTitle: true,
-            backgroundColor: AppConfig.system,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            bottom: TabBar(
-              onTap: (index) {
-                // تصفية المنتجات ديناميكياً حسب اسم الـ Tab المضغوط
-                controller.updateTabFilter(dynamicTabs[index]);
-              },
-              isScrollable: true,
-
-              // 🎨 تظبيط ألوان الوقوف والتفاعل بناءً على الهوية الجديدة
-              indicatorColor: Colors.orangeAccent, // لون الخط السفلي للـ Tab النشط
-              indicatorWeight: 4,
-
-              labelColor: Colors.red, // 👈 لون نص وأيقونة الـ Tab النشط (اللي واقف عليه حالياً)
-              labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-
-              unselectedLabelColor: Colors.white.withOpacity(0.65), // 👈 لون نص وأيقونات الـ Tabs غير النشطة (علشان ما تضايقش العين)
-              unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal, fontSize: 13),
-
-              tabs: dynamicTabs.map((tabName) {
-                IconData tabIcon = tabName == 'الكل'
-                    ? Icons.all_inclusive
-                    : (tabName == 'بن' ? Icons.grain : Icons.category);
-                return Tab(text: tabName, icon: Icon(tabIcon));
-              }).toList(),
+    return DefaultTabController(
+      length: 4,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8F5F2), // خلفية الشاشة بدرجة البيج الهادئة
+        appBar: AppBar(
+          actions: [
+            // زر تحديث الأرصدة وإعادة تحميل المنتجات من قاعدة البيانات
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: () => controller.loadProducts(),
+              tooltip: 'تحديث الأرصدة',
             ),
-            shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.vertical(bottom: Radius.circular(30))),
+          ],
+          title: const Text('مخزن بيت البن',
+              style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1)),
+          centerTitle: true,
+          backgroundColor: Colors.brown[700], // تلوين شريط التطبيق بالبني الغامق
+          foregroundColor: Colors.white,
+          elevation: 0,
+          bottom: TabBar(
+            onTap: (index) {
+              // فلترة المنتجات في الكنترولر بناءً على التبويب المحدد
+              List<String> types = ['الكل', 'بن', 'مشروب', 'أكل سريع / أخرى'];
+              String targetCat = types[index] == 'أكل سريع / أخرى' ? 'أكل سريع / أخرى' : types[index];
+              controller.updateTabFilter(targetCat);
+            },
+            isScrollable: true,
+
+            // 🌟 تعديلات الألوان والخطوط للظهور بوضوح:
+            indicatorColor: Colors.amber[400], // لون مؤشر التحديد (أصفر دافئ متناسق مع البيج والبني)
+            indicatorWeight: 4,
+            labelColor: Colors.white, // لون الأيقونة والنص للتبويب النشط (المحدد حالياً)
+            unselectedLabelColor: Colors.white.withValues(alpha: 0.45), // لون التبويبات الأخرى غير النشطة لتوفير تباين مريح
+            labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo'), // تخصيص الخط للمحدد
+            unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal, fontSize: 13, fontFamily: 'Cairo'),
+
+            tabs: const [
+              Tab(text: 'الكل', icon: Icon(Icons.all_inclusive)),
+              Tab(text: 'ركن البن', icon: Icon(Icons.grain)),
+              Tab(text: 'المشروبات', icon: Icon(Icons.local_cafe)),
+              Tab(text: 'أصناف أخرى', icon: Icon(Icons.fastfood)),
+            ],
           ),
-          body: Row(
-            children: [
-              _buildCreativeSideForm(),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(25.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildCreativeSearchBar(),
-                      const SizedBox(height: 25),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('الرفوف الحالية',
-                              style: TextStyle(fontSize: 22,
-                                  fontWeight: FontWeight.w900,
-                                  color: Color(0xFF4E342E))),
-                          Text('${controller.filteredProducts.length} صنف',
-                              style: TextStyle(color: AppConfig.primaryColor,
-                                  fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                      const SizedBox(height: 15),
-                      Expanded(child: _buildProductGrid()),
-                    ],
-                  ),
+          shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(30))),
+        ),
+        body: Row(
+          children: [
+            _buildCreativeSideForm(), // القائمة الجانبية المرنة لإضافة صنف جديد
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(25.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildCreativeSearchBar(), // شريط البحث العلوي
+                    const SizedBox(height: 25),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('الرفوف الحالية',
+                            style: TextStyle(fontSize: 22,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFF4E342E))),
+                        Obx(() =>
+                            Text('${controller.filteredProducts.length} صنف',
+                                style: TextStyle(color: Colors.brown[400],
+                                    fontWeight: FontWeight.bold))),
+                      ],
+                    ),
+                    const SizedBox(height: 15),
+                    Expanded(child: _buildProductGrid()), // شبكة عرض المنتجات
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-      );
-    });
+      ),
+    );
   }
 
+  // بناء شبكة عرض الأصناف (Grid) بشكل مرن ومتجاوب
   Widget _buildProductGrid() {
     return Obx(() {
       if (controller.filteredProducts.isEmpty) {
@@ -113,28 +111,31 @@ class ProductsScreen extends GetView<ProductsController> {
     });
   }
 
+  // بناء بطاقة المنتج الاحترافية
+// بناء بطاقة المنتج الاحترافية المحدثة بالأرصدة والألوان التحذيرية
   Widget _buildPremiumProductCard(Product p) {
+    // 📊 جلب الرصيد الحالي الفعلي من الكنترولر
     double remaining = controller.productStock[p.id] ?? 0.0;
 
-    // 🎯 التعديل: المنتج يعتبر نافد فقط لو كميته صفر أو أقل، وبشرط ميكونش رصيد مفتوح (999)
-    bool isOutofStock = remaining <= 0 && remaining != 999.0;
+    // 🔍 تحديد حالة المخزن (خلصان - قرب يخلص - متوفر)
+    bool isOutofStock = remaining <= 0;
 
-    // 💡 النواقص: بتتحسب فقط للمنتجات العادية اللي مش رصيد مفتوح
-    bool isLowStock = remaining != 999.0 && (
-        (p.category == 'بن' && remaining > 0 && remaining <= 2.0) ||
-            (p.category != 'بن' && remaining > 0 && remaining <= 5.0)
-    );
+    // شرط التنبيه: لو بن وأقل من 2 كيلو، أو لو أصناف تانية وأقل من 5 قطع
+    bool isLowStock = (p.category == 'بن' && remaining > 0 && remaining <= 2.0) ||
+        (p.category != 'بن' && p.category != 'مشروب' && remaining > 0 && remaining <= 5.0);
 
+    // 🎨 تحديد لون خلفية الكارد بناءً على حالة الجرد
     Color cardBgColor = Colors.white;
     if (isOutofStock) {
-      cardBgColor = Colors.grey[200]!;
+      cardBgColor = Colors.grey[200]!; // رمادي لو خلص
     } else if (isLowStock) {
-      cardBgColor = const Color(0xFFFFF3E0);
+      cardBgColor = const Color(0xFFFFF3E0); // برتقالي خفيف تنبيهي لو قرب يخلص
     }
 
-    String unitLabel = p.unit ?? 'وحدة';
-    final style = _getCategoryStyle(p.category);
+    // 🏷️ تحديد تمييز الوحدة (كيلو للبن، قطعة للأخرى، والمشروبات رصيد مفتوح)
+    String unitLabel = p.category == 'بن' ? 'كيلو' : 'قطعة';
 
+    final style = _getCategoryStyle(p.category);
     return Container(
       decoration: BoxDecoration(
         color: cardBgColor,
@@ -189,10 +190,11 @@ class ProductsScreen extends GetView<ProductsController> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
+
                 const SizedBox(height: 4),
 
-                // 🎯 التعديل: لو الرصيد مش 999 يعرض المتاح بالأرقام، ولو 999 يقلب رصيد مفتوح فوراً
-                if (remaining != 999.0) ...[
+                // 📊 ⚡ الجزء الجديد: عرض الكمية المتاحة فعلياً بلون ديناميكي
+                if (p.category != 'مشروب') ...[
                   Text(
                     isOutofStock
                         ? 'المتاح: 0 $unitLabel ⚠️'
@@ -206,11 +208,13 @@ class ProductsScreen extends GetView<ProductsController> {
                     ),
                   ),
                 ] else ...[
+                  // المشروبات السائلة رصيدها مفتوح دايماً من المنيو
                   Text(
-                    'رصيد مفتوح ($unitLabel) ✨',
+                    'رصيد مفتوح (كوب) ✨',
                     style: TextStyle(fontSize: 12, color: Colors.green[700], fontWeight: FontWeight.w500),
                   ),
                 ],
+
                 const Spacer(),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -281,6 +285,9 @@ class ProductsScreen extends GetView<ProductsController> {
     );
   }
 
+  // ========== 🟢 تحديث: نموذج الإضافة الجانبي المطور والمرن بالكامل ==========
+// ========== 🟢 تحديث: نموذج الإضافة الجانبي الآمن تماماً من الـ Crash ==========
+// ========== 🟢 تحديث: نموذج الإضافة الجانبي مع إضافة حقل الكمية المخزنية المباشرة ==========
   Widget _buildCreativeSideForm() {
     return Container(
       width: 320,
@@ -296,15 +303,19 @@ class ProductsScreen extends GetView<ProductsController> {
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
             const Divider(height: 30),
 
-            const Text('اسم المنتج:',
+            // 1. حقل نصي حر لكتابة اسم المنتج يدوياً
+            const Text('اسم المنتج (اكتب هنا مباشرة):',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
             const SizedBox(height: 8),
-            _buildField(controller.nameCtrl, 'ادخل الاسم', Icons.label),
+            _buildField(controller.nameCtrl, 'مثال:  نسكافيه، نعناع ...', Icons.label),
 
             const SizedBox(height: 15),
 
+            // 2. قائمة المساعدة المنسدلة المحمية من مشاكل الـ Duplicate والـ Missing values
             Obx(() {
               if (controller.availableProductNames.isEmpty) return const SizedBox();
+
+              // التحقق هل القيمة المخزنة موجودة فعلياً داخل القائمة المجلوبة؟
               final currentValue = controller.selectedProductName.value;
               final bool hasValidValue = controller.availableProductNames.contains(currentValue);
 
@@ -346,6 +357,7 @@ class ProductsScreen extends GetView<ProductsController> {
               );
             }),
 
+            // 3. حقل إدخال سعر البيع المخصص
             const Text('سعر البيع لعميل الصالة:',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
             const SizedBox(height: 8),
@@ -353,35 +365,24 @@ class ProductsScreen extends GetView<ProductsController> {
 
             const SizedBox(height: 15),
 
+            // ⚡ 4. الحقل الجديد: إضافة الكمية المتوفرة مباشرة للمخزن (بدون مشتريات)
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('الكمية المتوفرة حالياً:',
+                const Text('الكمية المتوفرة بالمخزن حالياً:',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                Obx(() => Text('(${controller.selectedUnit.value ?? ''})',
-                    style: TextStyle(color: AppConfig.primaryColor, fontSize: 11, fontWeight: FontWeight.bold))),
+                Obx(() {
+                  // إشعار مستخدم نوع الوحدة ديناميكياً
+                  String unitHint = 'قطعة';
+                  if (controller.selectedCategory.value == 'بن') unitHint = 'كيلو';
+                  if (controller.selectedCategory.value == 'مشروب') unitHint = 'كوب';
+                  return Text('($unitHint)', style: TextStyle(color: Colors.brown[400], fontSize: 11, fontWeight: FontWeight.bold));
+                }),
               ],
             ),
             const SizedBox(height: 8),
+            // نربطه بـ controller.stockCtrl اللي هنعرفه حالا في خطوة 2
             _buildField(controller.stockCtrl, 'مثال: 10 أو 25.5', Icons.inventory_2_rounded, isNumber: true),
-
-            const SizedBox(height: 15),
-
-            // 🆕 إضافة اختيار ديناميكي لوحدة القياس من جداول الوحدات القادمة من الداتابيز
-            const Text('وحدة القياس المعتمدة:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(color: Colors.grey[50], borderRadius: BorderRadius.circular(15)),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: controller.selectedUnit.value,
-                  isExpanded: true,
-                  items: controller.unitsList.map((unit) => DropdownMenuItem(value: unit, child: Text(unit))).toList(),
-                  onChanged: (val) => controller.selectedUnit.value = val,
-                ),
-              ),
-            ),
 
             const SizedBox(height: 20),
 
@@ -395,22 +396,22 @@ class ProductsScreen extends GetView<ProductsController> {
               onPressed: controller.addProduct,
               style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 55),
-                  backgroundColor: AppConfig.system,
+                  backgroundColor: Colors.brown[800],
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
-              child: const Text('إضافة للمخزن 💾',
+              child: const Text('إضافة للمخزن',
                   style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             )
           ],
         ),
       ),
     );
-  }
-
+  }  // أزرار الاختيار المخصصة لتحديد فئة الصنف الجديد
   Widget _buildCustomSelector() {
+    final categories = ['بن', 'مشروب', 'أكل سريع / أخرى'];
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: controller.categoriesList.map((cat) {
+      children: categories.map((cat) {
         return Obx(() {
           bool isSelected = controller.selectedCategory.value == cat;
           return GestureDetector(
@@ -419,9 +420,9 @@ class ProductsScreen extends GetView<ProductsController> {
               duration: const Duration(milliseconds: 200),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: isSelected ? AppConfig.system : Colors.grey[100],
+                color: isSelected ? Colors.brown[800] : Colors.grey[100],
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: isSelected ? AppConfig.primaryColor : Colors.grey.shade300),
+                border: Border.all(color: isSelected ? Colors.brown : Colors.grey.shade300),
               ),
               child: Text(cat, style: TextStyle(
                   color: isSelected ? Colors.white : Colors.black87,

@@ -292,7 +292,7 @@ class DatabaseHelper {
         'name': 'شادي',
         'role': 'admin',
         'username': 'shady',
-        'password': '01032607563',
+        'password': '1234',
         'created_at': DateTime.now().toIso8601String(),
       });
     }
