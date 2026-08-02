@@ -69,49 +69,69 @@ class ProductsController extends GetxController {
 // 📊 حساب الرصيد الذكي: يدمج المشتريات الخارجية مع بضاعة المصنع المباشرة بدقة
   Future<void> loadProductBalances() async {
     try {
-      final now = DateTime.now();
+      final db = await dbHelper.database;
 
-      final purchases = await _purchasesRepo.getPurchasesForMonth(now.month, now.year);
-      final sales = await _reportsRepo.getMonthlySalesGroupedByProduct(now.month, now.year);
+      // 1️⃣ جلب إجمالي المشتريات تجميعياً لكل منتج (تاريخي بالكامل)
+      final purchasesResult = await db.rawQuery('''
+      SELECT product_name, SUM(quantity) as total_purchased 
+      FROM purchases 
+      GROUP BY product_name
+    ''');
 
-      // تجميع المشتريات بناءً على اسم المنتج للشهر الحالي
       Map<String, double> purchasedQuantity = {};
-      for (var p in purchases) {
-        purchasedQuantity[p.productName.trim().toLowerCase()] =
-            (purchasedQuantity[p.productName.trim().toLowerCase()] ?? 0) + p.quantity;
+      for (var row in purchasesResult) {
+        final name = (row['product_name'] as String?)?.trim().toLowerCase();
+        final qty = (row['total_purchased'] as num?)?.toDouble() ?? 0.0;
+        if (name != null) purchasedQuantity[name] = qty;
+      }
+
+      // 2️⃣ جلب إجمالي المبيعات تجميعياً برقم المنتج (product_id) من جدول المبيعات
+      final salesResult = await db.rawQuery('''
+      SELECT product_id, SUM(quantity) as total_sold 
+      FROM sales 
+      GROUP BY product_id
+    ''');
+
+      Map<int, double> salesQuantity = {};
+      for (var row in salesResult) {
+        final productId = row['product_id'] as int?;
+        final qty = (row['total_sold'] as num?)?.toDouble() ?? 0.0;
+        if (productId != null) salesQuantity[productId] = qty;
       }
 
       final Map<int, double> newStock = {};
 
       for (var product in allProducts) {
-        if (product.id == null) continue; // حماية
+        if (product.id == null) continue;
 
         String pNameNormalized = product.name.trim().toLowerCase();
 
         if (product.category == 'مشروب' || product.category == 'أكل سريع') {
-          newStock[product.id!] = 999.0; // أرصدة مفتوحة للمشروبات والوجبات
+          newStock[product.id!] = 999.0; // أرصدة مفتوحة للمشروبات والأكل
         } else {
-          double purchased = purchasedQuantity[pNameNormalized] ?? 0;
+          double purchased = purchasedQuantity[pNameNormalized] ?? 0.0;
           double manualStock = product.initialStock ?? 0.0;
 
-          // ✨ التعديل الجوهري: إجمالي الداخل = المشتريات الخارجية + كمية المصنع اليدوية
-          double totalIncoming = purchased + manualStock; // 10 مشتريات + 20 مصنع = 30 كيلو داخلي
+          // إجمالي الداخل = المشتريات التاريخية + الرصيد الابتدائي
+          double totalIncoming = purchased + manualStock;
 
-          double sold = sales[product.name] ?? 0;
+          // إجمالي الخارج = مبيعات المنتج التاريخية بالكامل
+          double sold = salesQuantity[product.id!] ?? 0.0;
+
           double remaining = totalIncoming - sold;
 
-          // حفظ الرصيد الفعلي (المتبقي) مع منع الأرقام السالبة
+          // حفظ الرصيد الفعلي المتبقي مع منع الأرقام السالبة
           newStock[product.id!] = remaining > 0 ? remaining : 0.0;
         }
       }
 
       productStock.value = newStock;
+      productStock.refresh();
 
     } catch (e) {
       AppSnackbar.error("خطأ في حساب الأرصدة: $e");
     }
   }
-  // 🎯 تحميل الأسماء للمساعدة فقط
   Future<void> loadAvailableProductNames() async {
     try {
       final purchases = await _purchasesRepo.getAllPurchases();

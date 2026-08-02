@@ -1,54 +1,59 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import '../constants/app_config.dart';
 import '../constants/constants.dart';
 import '../database_helper.dart';
-import '../models/cart_item.dart';
 import '../repositories/sales_repository.dart';
 import '../repositories/purchases_repository.dart';
 import '../repositories/reports_repository.dart';
 import '../models/product_model.dart';
+import '../models/cart_item.dart';
 
 class SalesController extends GetxController {
+  // 🔹 Repositories & Helpers
   final salesRepo = SalesRepository();
   final dbHelper = DatabaseHelper.instance;
   final _purchasesRepo = PurchasesRepository();
   final _reportsRepo = ReportsRepository();
 
+  // 🔹 Text Controllers
+  final amountCtrl = TextEditingController();
+  final qtyCtrl = TextEditingController();
+
+  // 🔹 المنتجات والسلة
   var products = <Product>[].obs;
-  var availableProducts = <Product>[].obs; // القائمة المفلترة الجاهزة للعرض
+  var availableProducts = <Product>[].obs;
+  var cartItems = <CartItem>[].obs;
+
+  // 🔹 البحث والتصفية
+  var searchQuery = ''.obs;
+
+  // 🔹 حالات
   var isLoading = true.obs;
   var isSaving = false.obs;
 
-  // 🆕 لست الفئات والوحدات الديناميكية القادمة من قاعدة البيانات
-  var categoriesList = <String>[].obs;
-  var unitsList = <String>[].obs;
-
+  // 🔹 الاختيارات
   var selectedCategory = RxnString();
   var selectedProductId = RxnInt();
 
+  // 🔹 القيم
   var quantity = 1.0.obs;
   var unitPrice = 0.0.obs;
   var amount = RxnDouble();
-  var unitLabel = "وحدة".obs; // 👈 لعرض وحدة المنتج المختار ديناميكياً
+  var unitLabel = "وحدة".obs;
   var computedWeight = 0.0.obs;
+
+  // 🔹 الرصيد لكل منتج
   var productRemainingMap = <int, double>{}.obs;
 
-  var searchQuery = ''.obs; // نص البحث
-
-  var cartItems = <CartItem>[].obs; // السلة
-
   final formKey = GlobalKey<FormState>();
-  final amountCtrl = TextEditingController();
-  final qtyCtrl = TextEditingController(text: '1');
 
   @override
   void onInit() {
     super.onInit();
-    // ربط البحث والنوع بإعادة الفلترة تلقائياً فور تغيرهم
-    ever(searchQuery, (_) => _filterProducts());
-    ever(selectedCategory, (_) => _filterProducts());
     loadProducts();
+
+    // فلترة المنتجات فوراً عند البحث
+    debounce(searchQuery, (_) => _filterAvailableProducts(), time: const Duration(milliseconds: 300));
   }
 
   @override
@@ -58,184 +63,227 @@ class SalesController extends GetxController {
     super.onClose();
   }
 
+  // ================= تحميل المنتجات =================
   Future<void> loadProducts() async {
     isLoading(true);
     try {
       final db = await dbHelper.database;
-
-      // 📥 1. جلب الفئات والوحدات المسجلة ديناميكياً من الجداول الجديدة
-      final catData = await db.query('categories');
-      final unitData = await db.query('units');
-
-      categoriesList.assignAll(catData.map((e) => e['name'] as String).toList());
-      unitsList.assignAll(unitData.map((e) => e['name'] as String).toList());
-
-      // 📥 2. جلب المنتجات كالمعتاد
       final result = await db.query('products');
-      products.assignAll(result.map((e) => Product.fromMap(e)).toList());
+
+      products.assignAll(
+        result.map((e) => Product.fromMap(e)).toList(),
+      );
 
       await _loadRemainingBalances();
-      _filterProducts(); // تشغيل الفلترة المبدئية
+      _filterAvailableProducts();
     } catch (e) {
-      AppSnackbar.error("خطأ في تحميل المنتجات والبيانات الديناميكية: $e");
+      AppSnackbar.error("خطأ في تحميل المنتجات: $e");
     } finally {
       isLoading(false);
     }
   }
 
-  // 🧠 حساب الأرصدة ديناميكياً بدون إجبار السيستم على كلمة "مشروب" ثابتة
-// 🧠 حساب الأرصدة ديناميكياً بناءً على حركة المشتريات والكمية الافتتاحية
+  // ================= حساب الأرصدة المتاحة للمنتجات =================
+// ================= حساب الأرصدة المتاحة للمنتجات =================
+// ================= حساب الأرصدة المتاحة الحقيقية =================
   Future<void> _loadRemainingBalances() async {
     try {
-      final now = DateTime.now();
-      final purchases = await _purchasesRepo.getPurchasesForMonth(now.month, now.year);
-      final sales = await _reportsRepo.getMonthlySalesGroupedByProduct(now.month, now.year);
+      final db = await dbHelper.database;
+
+      // 1️⃣ إجمالي كل المشتريات والتوريدات التاريخية لكل منتج
+      final purchasesResult = await db.rawQuery('''
+        SELECT product_name, SUM(quantity) as total_purchased 
+        FROM purchases 
+        GROUP BY product_name
+      ''');
+
+      // 2️⃣ إجمالي كل المبيعات التاريخية لكل منتج
+      final salesResult = await db.rawQuery('''
+        SELECT product_id, SUM(quantity) as total_sold 
+        FROM sales 
+        GROUP BY product_id
+      ''');
 
       Map<String, double> purchasedQuantityMap = {};
-      for (var p in purchases) {
-        String key = p.productName.trim().toLowerCase();
-        purchasedQuantityMap[key] = (purchasedQuantityMap[key] ?? 0) + p.quantity;
+      for (var row in purchasesResult) {
+        final name = (row['product_name'] as String?)?.trim().toLowerCase();
+        final qty = (row['total_purchased'] as num?)?.toDouble() ?? 0.0;
+        if (name != null) purchasedQuantityMap[name] = qty;
       }
 
+      Map<int, double> soldQuantityMap = {};
+      for (var row in salesResult) {
+        final productId = row['product_id'] as int?;
+        final qty = (row['total_sold'] as num?)?.toDouble() ?? 0.0;
+        if (productId != null) soldQuantityMap[productId] = qty;
+      }
+
+      // 3️⃣ حساب المعادلة التراكمية الصحيحة للمخزن
       for (var product in products) {
-        if (product.id == null) continue;
+        final cleanProductName = product.name.trim().toLowerCase();
 
-        String productKey = product.name.trim().toLowerCase();
-        double purchasedQty = purchasedQuantityMap[productKey] ?? 0.0;
-        double manualStock = product.initialStock ?? 0.0;
+        // إجمالي التوريدات الجديدة من جدول المشتريات
+        double totalPurchased = purchasedQuantityMap[cleanProductName] ?? 0.0;
 
-        // إجمالي الكمية الواردة
-        double totalIncoming = purchasedQty > 0 ? purchasedQty : manualStock;
+        // إجمالي ما تم بيعه تاريخياً من هذا المنتج
+        double totalSold = soldQuantityMap[product.id] ?? 0.0;
 
-        // 🎯 التعديل السحري: لو ملوش مشتريات ولا كمية يدوية ومش قسم بن، يبقى رصيد مفتوح (999.0)
-        if (totalIncoming == 0.0 && product.category != 'بن') {
-          productRemainingMap[product.id!] = 999.0;
-        } else {
-          // الحسبة العادية للمنتجات محددة الكمية
-          double sold = sales[product.name] ?? 0.0;
-          double remaining = totalIncoming - sold;
+        // 🔑 المعادلة الصحيحة: (رصيد الصنف المباشر عند إنشائه + كل المشتريات/التوريدات) - (كل المبيعات)
+        double totalStockIn = product.initialStock + totalPurchased;
+        double remaining = totalStockIn - totalSold;
 
-          productRemainingMap[product.id!] = remaining > 0 ? remaining : 0.0;
+        // استثناء أصناف المشروبات (رصيد مفتوح دائماً)
+        if (product.category.trim() == 'مشروب') {
+          remaining = 9999.0;
         }
+
+        productRemainingMap[product.id!] = remaining > 0 ? remaining : 0.0;
       }
     } catch (e) {
       AppSnackbar.error("خطأ في حساب الأرصدة: $e");
     }
   }
-  // 🔍 الفلترة الذكية
-  void _filterProducts() {
-    var filtered = products.where((p) {
-      bool matchesCategory = selectedCategory.value == null || p.category == selectedCategory.value;
-      bool matchesSearch = searchQuery.value.isEmpty || p.name.toLowerCase().contains(searchQuery.value.toLowerCase());
-      double remaining = productRemainingMap[p.id] ?? 0;
-      bool hasStock = remaining > 0;
+  // ================= فلترة المنتجات للمبيعات =================
+  void _filterAvailableProducts() {
+    availableProducts.assignAll(
+      products.where((p) {
+        final hasStock = (productRemainingMap[p.id] ?? 0) > 0;
 
-      return matchesCategory && matchesSearch && hasStock;
-    }).toList();
+        final pCategory = p.category.trim().toLowerCase();
+        final selCategory = selectedCategory.value?.trim().toLowerCase();
 
-    availableProducts.assignAll(filtered);
-  }
+        // مقارنة القسم بشكل مرن يتغاضى عن الإيموجي والكلمات الإضافية
+        bool matchesCategory = false;
+        if (selCategory == null) {
+          matchesCategory = true;
+        } else if (selCategory.contains('بن') && pCategory.contains('بن')) {
+          matchesCategory = true;
+        } else if (selCategory.contains('مشروب') && pCategory.contains('مشروب')) {
+          matchesCategory = true;
+        } else {
+          matchesCategory = pCategory == selCategory;
+        }
 
+        final matchesSearch = searchQuery.value.isEmpty ||
+            p.name.toLowerCase().contains(searchQuery.value.toLowerCase());
+
+        return hasStock && matchesCategory && matchesSearch;
+      }).toList(),
+    );
+  }  // ================= فلترة المنتجات للمبيعات =================
+
+  // ================= تغيير الكاتيجوري =================
   void onCategoryChanged(String? val) {
     selectedCategory.value = val;
-    resetFields();
+    selectedProductId.value = null;
+    amount.value = null;
+    unitPrice.value = 0.0;
+    computedWeight.value = 0.0;
+    amountCtrl.clear();
+    qtyCtrl.clear();
+
+    if (val == 'بن') {
+      unitLabel.value = "كيلو";
+      quantity.value = 0.125;
+    } else {
+      unitLabel.value = val == 'مشروب' ? "كوب" : "قطعة";
+      quantity.value = 1.0;
+    }
+    _filterAvailableProducts();
   }
 
-  // 🔄 تحديث تفاصيل المنتج والتعرف على وحدته الديناميكية
-  void updateProduct(int? id) {
-    if (id == null) return;
+  // ================= اختيار المنتج =================
+  Future<void> updateProduct(int? id) async {
     selectedProductId.value = id;
     amount.value = null;
     amountCtrl.clear();
 
-    final p = products.firstWhere((p) => p.id == id);
-    unitPrice.value = p.price;
-    unitLabel.value = p.unit ?? "وحدة"; // 👈 تخزين وحدة الصنف الحالي (علبة، شريط، قطعة...)
+    if (id != null) {
+      final p = products.firstWhere((p) => p.id == id);
+      unitPrice.value = p.price;
 
-    // فحص تشغيل الأوزان الجاهزة بناءً على ميزة الأوزان في الإعدادات ونوع الصنف
-    final useWeights = AppConfig.enableWeightSystem && (p.unit == 'كيلو' || p.category == 'بن');
-
-    if (useWeights) {
-      quantity.value = 0.125;
-      qtyCtrl.text = "0.125";
-    } else {
-      quantity.value = 1.0;
-      qtyCtrl.text = "1";
+      double remaining = productRemainingMap[id] ?? 0;
+      if (remaining <= 0) {
+        AppSnackbar.warning("هذا المنتج نفذ من المخزن");
+        selectedProductId.value = null;
+      }
     }
   }
 
+  // ================= حساب الوزن عند إدخال المبلغ =================
   void updateAmountAndWeight(String value) {
-    final useWeights = AppConfig.enableWeightSystem && (selectedCategory.value == 'بن' || unitLabel.value == 'كيلو');
-
-    if (value.isEmpty) {
-      amount.value = null;
-      computedWeight.value = 0.0;
-      quantity.value = useWeights ? 0.125 : 1.0;
-      qtyCtrl.text = quantity.value.toString();
-      return;
-    }
     final amountValue = double.tryParse(value);
     if (amountValue != null && amountValue > 0 && unitPrice.value > 0) {
       amount.value = amountValue;
       computedWeight.value = amountValue / unitPrice.value;
       quantity.value = computedWeight.value;
-      qtyCtrl.text = quantity.value.toStringAsFixed(3);
     } else {
       amount.value = null;
       computedWeight.value = 0.0;
     }
   }
 
-  double get currentTotal {
-    if (amount.value != null && amount.value! > 0) return amount.value!;
-    if (selectedProductId.value == null) return 0.0;
-    return quantity.value * unitPrice.value;
-  }
+  double get currentTotal => amount.value ?? (quantity.value * unitPrice.value);
+  double get orderTotal => cartItems.fold(0.0, (sum, item) => sum + item.total);
 
+  // ================= السلة (Cart) =================
   void addToCart() {
     if (selectedProductId.value == null) {
-      AppSnackbar.warning("اختر منتجاً أولاً");
+      AppSnackbar.warning("برجاء اختيار المنتج أولاً");
       return;
     }
+
     final product = products.firstWhere((p) => p.id == selectedProductId.value);
-    final remaining = productRemainingMap[selectedProductId.value] ?? 0;
-    if (quantity.value > remaining) {
-      AppSnackbar.warning("الكمية المطلوبة أكبر من المتاح");
+    double remaining = productRemainingMap[product.id] ?? 0;
+    double finalQuantity = (amount.value != null) ? (amount.value! / unitPrice.value) : quantity.value;
+
+    if (finalQuantity > remaining && product.category.trim() != 'مشروب') {
+      AppSnackbar.warning("الكمية المطلوبة أكبر من المتاح بالمخزن");
       return;
     }
+
     cartItems.add(CartItem(
       productId: product.id!,
       productName: product.name,
-      quantity: quantity.value,
+      quantity: finalQuantity,
       unitPrice: unitPrice.value,
       total: currentTotal,
       category: product.category,
     ));
+
     resetFields();
-    AppSnackbar.success("تمت الإضافة إلى السلة");
+    AppSnackbar.success("تمت إضافة الصنف للسلة");
   }
 
-  void removeCartItem(int index) => cartItems.removeAt(index);
-  double get orderTotal => cartItems.fold(0, (sum, item) => sum + item.total);
+  void removeCartItem(int index) {
+    cartItems.removeAt(index);
+  }
 
+  // ================= حفظ المنتج الفردي =================
   Future<bool> saveSingleProduct(int userId) async {
+    if (!formKey.currentState!.validate()) return false;
     if (selectedProductId.value == null) {
-      AppSnackbar.warning("اختر منتجاً أولاً");
+      AppSnackbar.warning("اختار المنتج");
       return false;
     }
+
     double remaining = productRemainingMap[selectedProductId.value] ?? 0;
     double finalQuantity = (amount.value != null) ? (amount.value! / unitPrice.value) : quantity.value;
-    if (finalQuantity > remaining) {
+
+    final product = products.firstWhere((p) => p.id == selectedProductId.value);
+    if (finalQuantity > remaining && product.category.trim() != 'مشروب') {
       AppSnackbar.warning("الكمية أكبر من المتاح");
       return false;
     }
+
     isSaving(true);
     try {
       int? shiftId = await dbHelper.getOpenShiftId();
       if (shiftId == null) {
-        AppSnackbar.error("لا يوجد شيفت مفتوح");
+        AppSnackbar.error("مفيش شيفت مفتوح");
         return false;
       }
+
       await salesRepo.addSale(
         shiftId: shiftId,
         userId: userId,
@@ -244,31 +292,32 @@ class SalesController extends GetxController {
         unitPrice: unitPrice.value,
         totalAmount: currentTotal,
       );
+
+      AppSnackbar.success("تم الحفظ بنجاح");
+      resetFields();
       await loadProducts();
       DatabaseHelper.notifySalesChanged();
-      resetFields();
-      AppSnackbar.success("تم حفظ الفاتورة");
       return true;
     } catch (e) {
-      AppSnackbar.error("خطأ أثناء الحفظ: $e");
+      AppSnackbar.error("حدث خطأ أثناء الحفظ: $e");
       return false;
     } finally {
       isSaving(false);
     }
   }
 
+  // ================= حفظ الفاتورة بالكامل =================
   Future<bool> saveCart(int userId) async {
-    if (cartItems.isEmpty) {
-      AppSnackbar.warning("السلة فارغة");
-      return false;
-    }
+    if (cartItems.isEmpty) return false;
+
     isSaving(true);
     try {
       int? shiftId = await dbHelper.getOpenShiftId();
       if (shiftId == null) {
-        AppSnackbar.error("لا يوجد شيفت مفتوح");
+        AppSnackbar.error("مفيش شيفت مفتوح");
         return false;
       }
+
       for (var item in cartItems) {
         await salesRepo.addSale(
           shiftId: shiftId,
@@ -279,24 +328,18 @@ class SalesController extends GetxController {
           totalAmount: item.total,
         );
       }
+
       cartItems.clear();
+      AppSnackbar.success("تم حفظ الفاتورة بنجاح");
+      resetFields();
       await loadProducts();
       DatabaseHelper.notifySalesChanged();
-      AppSnackbar.success("تم حفظ الأوردر بالكامل");
       return true;
     } catch (e) {
-      AppSnackbar.error("خطأ أثناء الحفظ: $e");
+      AppSnackbar.error("خطأ في حفظ السلة: $e");
       return false;
     } finally {
       isSaving(false);
-    }
-  }
-
-  Future<bool> saveSmart(int userId) async {
-    if (cartItems.isNotEmpty) {
-      return await saveCart(userId);
-    } else {
-      return await saveSingleProduct(userId);
     }
   }
 
@@ -305,15 +348,7 @@ class SalesController extends GetxController {
     amount.value = null;
     computedWeight.value = 0.0;
     amountCtrl.clear();
-    searchQuery.value = '';
-
-    final useWeights = AppConfig.enableWeightSystem && (selectedCategory.value == 'بن' || unitLabel.value == 'كيلو');
-    if (useWeights) {
-      quantity.value = 0.125;
-      qtyCtrl.text = "0.125";
-    } else {
-      quantity.value = 1.0;
-      qtyCtrl.text = "1";
-    }
+    qtyCtrl.clear();
+    quantity.value = (selectedCategory.value == 'بن') ? 0.125 : 1.0;
   }
 }

@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+
 import '../constants/app_config.dart';
 import '../constants/constants.dart';
 import '../controllers/sales_controller.dart';
 import '../models/cart_item.dart';
-import 'package:flutter/services.dart' show rootBundle; // 💡 لازم تتأكد إن السطر ده موجود فوق خالص في الملف
-
 
 class AddSaleScreen extends GetView<SalesController> {
   final Map<String, dynamic> currentUser;
@@ -20,20 +20,41 @@ class AddSaleScreen extends GetView<SalesController> {
     return Scaffold(
       body: Stack(
         children: [
-          Container(decoration: const BoxDecoration(image: DecorationImage(image: AssetImage(AppConfig.salePageBg), fit: BoxFit.cover))),
+          Container(
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage(AppConfig.salePageBg),
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
           Container(color: Colors.black.withValues(alpha: 0.6)),
-          Positioned(top: 50, left: 16, child: IconButton(icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white), onPressed: () => Get.back())),
+          Positioned(
+            top: 50,
+            left: 16,
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
+              onPressed: () => Get.back(),
+            ),
+          ),
           Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Container(
                 width: 550,
                 padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.95), borderRadius: BorderRadius.circular(30)),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.95),
+                  borderRadius: BorderRadius.circular(30),
+                ),
                 child: Form(
                   key: controller.formKey,
                   child: Obx(() {
-                    if (controller.isLoading.value) return const Center(child: CircularProgressIndicator(color: Colors.brown));
+                    if (controller.isLoading.value) {
+                      return const Center(
+                        child: CircularProgressIndicator(color: Colors.brown),
+                      );
+                    }
                     return Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -66,31 +87,56 @@ class AddSaleScreen extends GetView<SalesController> {
     );
   }
 
-  Widget _buildHeader() => Column(children: [
-    const Icon(Icons.shopping_basket_outlined, size: 50, color: Colors.brown),
-    const SizedBox(height: 10),
-    const Text('إضافة مبيعات', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-    Text('الموظف الحالي: ${currentUser['name']}', style: const TextStyle(color: Colors.grey)),
-  ]);
+  Widget _buildHeader() => Column(
+    children: [
+      const Icon(Icons.shopping_basket_outlined, size: 50, color: Colors.brown),
+      const SizedBox(height: 10),
+      const Text('إضافة مبيعات', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+      Text('الموظف الحالي: ${currentUser['name']}', style: const TextStyle(color: Colors.grey)),
+    ],
+  );
 
   Widget _buildCategoryDropdown() => DropdownButtonFormField<String>(
     initialValue: controller.selectedCategory.value,
-    decoration: InputDecoration(labelText: 'نوع الصنف', prefixIcon: const Icon(Icons.category_outlined, color: Colors.brown), border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)), filled: true, fillColor: Colors.brown[50]?.withValues(alpha: 0.3)),
-    items: const [DropdownMenuItem(value: 'بن', child: Text('☕ بن (وزن)')), DropdownMenuItem(value: 'مشروب', child: Text('🍹 مشروب (كوب)')), DropdownMenuItem(value: 'أكل سريع / أخرى', child: Text('🍔 بيت الاعشاب  '))],
+    decoration: InputDecoration(
+      labelText: 'نوع الصنف',
+      prefixIcon: const Icon(Icons.category_outlined, color: Colors.brown),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
+      filled: true,
+      fillColor: Colors.brown[50]?.withValues(alpha: 0.3),
+    ),
+    // 🔑 التعديل الأساسي: الـ value هنا تطابق تماماً الكلمة المتخزنة بالداتابيز
+    items: const [
+      DropdownMenuItem(value: 'بن', child: Text('☕ بن (وزن)')),
+      DropdownMenuItem(value: 'مشروب', child: Text('🍹 مشروب (كوب)')),
+      DropdownMenuItem(value: 'أكل سريع / أخرى', child: Text('🍔 بيت الاعشاب')),
+    ],
     onChanged: controller.onCategoryChanged,
   );
 
   Widget _buildSearchBar() => TextFormField(
-    decoration: InputDecoration(hintText: '🔍 ابحث عن منتج هنا...', prefixIcon: const Icon(Icons.search, color: Colors.brown), filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide(color: Colors.brown.shade200)), contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12)),
+    decoration: InputDecoration(
+      hintText: '🔍 ابحث عن منتج هنا...',
+      prefixIcon: const Icon(Icons.search, color: Colors.brown),
+      filled: true,
+      fillColor: Colors.white,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(25),
+        borderSide: BorderSide(color: Colors.brown.shade200),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+    ),
     onChanged: (value) => controller.searchQuery.value = value,
   );
 
   Widget _buildProductDropdown() {
     if (controller.availableProducts.isEmpty) {
-      return const Center(child: Padding(
-        padding: EdgeInsets.all(8.0),
-        child: Text('لا توجد منتجات متوفرة أو مطابقة للبحث', style: TextStyle(color: Colors.red)),
-      ));
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(8.0),
+          child: Text('لا توجد منتجات متوفرة أو مطابقة للبحث', style: TextStyle(color: Colors.red)),
+        ),
+      );
     }
 
     final currentValue = controller.selectedProductId.value;
@@ -98,18 +144,26 @@ class AddSaleScreen extends GetView<SalesController> {
 
     return DropdownButtonFormField<int>(
       initialValue: hasValidValue ? currentValue : null,
-      decoration: InputDecoration(labelText: 'المنتج المتاح', prefixIcon: const Icon(Icons.inventory_2_outlined, color: Colors.brown), border: OutlineInputBorder(borderRadius: BorderRadius.circular(15))),
+      decoration: InputDecoration(
+        labelText: 'المنتج المتاح',
+        prefixIcon: const Icon(Icons.inventory_2_outlined, color: Colors.brown),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
+      ),
       items: controller.availableProducts.map((p) {
         double remaining = controller.productRemainingMap[p.id] ?? 0;
+        String stockText = p.category.trim() == 'مشروب'
+            ? 'رصيد مفتوح'
+            : '${remaining.toStringAsFixed(2)} متاح';
+
         return DropdownMenuItem<int>(
-            value: p.id,
-            child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(p.name),
-                  Text('${remaining.toStringAsFixed(2)} متاح', style: const TextStyle(fontSize: 12, color: Colors.blueGrey))
-                ]
-            )
+          value: p.id,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(p.name),
+              Text(stockText, style: const TextStyle(fontSize: 12, color: Colors.blueGrey)),
+            ],
+          ),
         );
       }).toList(),
       onChanged: (v) => controller.updateProduct(v),
@@ -119,48 +173,72 @@ class AddSaleScreen extends GetView<SalesController> {
   Widget _buildQuantitySection() {
     final isCoffee = controller.selectedCategory.value == 'بن';
     if (isCoffee) {
-      return Column(children: [
-        DropdownButtonFormField<double>(
-          initialValue: [0.125, 0.25, 0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0].contains(controller.quantity.value)
-              ? controller.quantity.value
-              : null,
-          decoration: const InputDecoration(labelText: 'أوزان جاهزة', border: OutlineInputBorder()),
-          items: [
-            const DropdownMenuItem(value: 0.125, child: Text('ثمن كيلو')),
-            const DropdownMenuItem(value: 0.25, child: Text('ربع كيلو')),
-            const DropdownMenuItem(value: 0.5, child: Text('نصف كيلو')),
-            ...List.generate(10, (index) {
-              final kiloValue = index + 1;
-              return DropdownMenuItem(
-                value: kiloValue.toDouble(),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // 🔄 عكسنا الترتيب هنا يدوياً علشان نتحايل على الـ LTR وتظهر في الـ UI مظبوطة (الرقم ثم الكلمة)
-                    const Text('كيلو'),
-                    const SizedBox(width: 6),
-                    Text('$kiloValue'),
-                  ],
-                ),
-              );
-            }),
-          ],
-          onChanged: (v) {
-            if (v != null) {
-              controller.quantity.value = v;
-              controller.amount.value = null;
-              controller.amountCtrl.clear();
-            }
-          },
-        ),
-        const SizedBox(height: 12),
-        TextFormField(controller: controller.amountCtrl, decoration: const InputDecoration(labelText: 'أو ادخل مبلغ محدد (ج.م)', border: OutlineInputBorder()), keyboardType: TextInputType.number, onChanged: controller.updateAmountAndWeight),
-        Obx(() => controller.computedWeight.value > 0 ? Text('الوزن المحسوب: ${controller.computedWeight.value.toStringAsFixed(3)} كجم', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)) : const SizedBox()),
-      ]);
+      return Column(
+        children: [
+          DropdownButtonFormField<double>(
+            initialValue: [0.125, 0.25, 0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0].contains(controller.quantity.value)
+                ? controller.quantity.value
+                : null,
+            decoration: const InputDecoration(labelText: 'أوزان جاهزة', border: OutlineInputBorder()),
+            items: [
+              const DropdownMenuItem(value: 0.125, child: Text('ثمن كيلو')),
+              const DropdownMenuItem(value: 0.25, child: Text('ربع كيلو')),
+              const DropdownMenuItem(value: 0.5, child: Text('نصف كيلو')),
+              ...List.generate(10, (index) {
+                final kiloValue = index + 1;
+                return DropdownMenuItem(
+                  value: kiloValue.toDouble(),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('كيلو'),
+                      const SizedBox(width: 6),
+                      Text('$kiloValue'),
+                    ],
+                  ),
+                );
+              }),
+            ],
+            onChanged: (v) {
+              if (v != null) {
+                controller.quantity.value = v;
+                controller.amount.value = null;
+                controller.amountCtrl.clear();
+              }
+            },
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: controller.amountCtrl,
+            decoration: const InputDecoration(labelText: 'أو ادخل مبلغ محدد (ج.م)', border: OutlineInputBorder()),
+            keyboardType: TextInputType.number,
+            onChanged: controller.updateAmountAndWeight,
+          ),
+          Obx(() => controller.computedWeight.value > 0
+              ? Text('الوزن المحسوب: ${controller.computedWeight.value.toStringAsFixed(3)} كجم', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold))
+              : const SizedBox()),
+        ],
+      );
     }
-    return TextFormField(controller: controller.qtyCtrl, decoration: const InputDecoration(labelText: 'الكمية', border: OutlineInputBorder()), keyboardType: TextInputType.number, onChanged: (v) => controller.quantity.value = double.tryParse(v) ?? 1.0);
+    return TextFormField(
+      controller: controller.qtyCtrl,
+      decoration: const InputDecoration(labelText: 'الكمية', border: OutlineInputBorder()),
+      keyboardType: TextInputType.number,
+      onChanged: (v) => controller.quantity.value = double.tryParse(v) ?? 1.0,
+    );
   }
-  Widget _buildPriceCard() => Container(padding: const EdgeInsets.all(15), decoration: BoxDecoration(color: Colors.green[700], borderRadius: BorderRadius.circular(15)), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('إجمالي الصنف الحالي:', style: TextStyle(color: Colors.white, fontSize: 16)), Obx(() => Text('${controller.currentTotal.toStringAsFixed(2)} ج.م', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)))]));
+
+  Widget _buildPriceCard() => Container(
+    padding: const EdgeInsets.all(15),
+    decoration: BoxDecoration(color: Colors.green[700], borderRadius: BorderRadius.circular(15)),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        const Text('إجمالي الصنف الحالي:', style: TextStyle(color: Colors.white, fontSize: 16)),
+        Obx(() => Text('${controller.currentTotal.toStringAsFixed(2)} ج.م', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold))),
+      ],
+    ),
+  );
 
   Widget _buildCartSection() {
     return Obx(() {
@@ -168,16 +246,45 @@ class AddSaleScreen extends GetView<SalesController> {
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(color: Colors.grey[50], borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.grey[300]!)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('📋 الأوردر الحالي (عدة منتجات):', style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          ListView.builder(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: controller.cartItems.length, itemBuilder: (context, index) {
-            final item = controller.cartItems[index];
-            return ListTile(dense: true, contentPadding: EdgeInsets.zero, title: Text(item.productName), subtitle: Text('${item.quantity.toStringAsFixed(2)} × ${item.unitPrice.toStringAsFixed(2)} ج.م'), trailing: Row(mainAxisSize: MainAxisSize.min, children: [Text('${item.total.toStringAsFixed(2)} ج.م'), IconButton(icon: const Icon(Icons.remove_circle_outline, color: Colors.red), onPressed: () => controller.removeCartItem(index))]));
-          }),
-          const Divider(),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('الإجمالي:', style: TextStyle(fontWeight: FontWeight.bold)), Text('${controller.orderTotal.toStringAsFixed(2)} ج.م', style: const TextStyle(color: Colors.brown, fontWeight: FontWeight.bold))]),
-        ]),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('📋 الأوردر الحالي (عدة منتجات):', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: controller.cartItems.length,
+              itemBuilder: (context, index) {
+                final item = controller.cartItems[index];
+                return ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(item.productName),
+                  subtitle: Text('${item.quantity.toStringAsFixed(2)} × ${item.unitPrice.toStringAsFixed(2)} ج.م'),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('${item.total.toStringAsFixed(2)} ج.م'),
+                      IconButton(
+                        icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
+                        onPressed: () => controller.removeCartItem(index),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            const Divider(),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('الإجمالي:', style: TextStyle(fontWeight: FontWeight.bold)),
+                Text('${controller.orderTotal.toStringAsFixed(2)} ج.م', style: const TextStyle(color: Colors.brown, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ],
+        ),
       );
     });
   }
@@ -199,7 +306,9 @@ class AddSaleScreen extends GetView<SalesController> {
         const Spacer(),
         Expanded(
           child: ElevatedButton(
-            onPressed: controller.isSaving.value ? null : () async {
+            onPressed: controller.isSaving.value
+                ? null
+                : () async {
               if (controller.cartItems.isNotEmpty) {
                 await controller.saveCart(currentUser['id']);
               } else {
@@ -213,7 +322,9 @@ class AddSaleScreen extends GetView<SalesController> {
         const SizedBox(width: 12),
         Expanded(
           child: ElevatedButton(
-            onPressed: controller.isSaving.value ? null : () async {
+            onPressed: controller.isSaving.value
+                ? null
+                : () async {
               List<CartItem> itemsToPrint = [];
               double totalToPrint = 0;
               bool success = false;
@@ -224,14 +335,16 @@ class AddSaleScreen extends GetView<SalesController> {
               } else {
                 if (controller.selectedProductId.value != null) {
                   final product = controller.products.firstWhere((p) => p.id == controller.selectedProductId.value);
-                  itemsToPrint = [CartItem(
-                    productId: product.id!,
-                    productName: product.name,
-                    quantity: controller.quantity.value,
-                    unitPrice: controller.unitPrice.value,
-                    total: controller.currentTotal,
-                    category: product.category,
-                  )];
+                  itemsToPrint = [
+                    CartItem(
+                      productId: product.id!,
+                      productName: product.name,
+                      quantity: controller.quantity.value,
+                      unitPrice: controller.unitPrice.value,
+                      total: controller.currentTotal,
+                      category: product.category,
+                    )
+                  ];
                   totalToPrint = controller.currentTotal;
                   success = await controller.saveSingleProduct(currentUser['id']);
                 } else {
@@ -254,7 +367,6 @@ class AddSaleScreen extends GetView<SalesController> {
   Future<void> _printInvoice(List<CartItem> items, double total) async {
     final pdf = pw.Document();
 
-    // 🔴 التعديل الأساسي: بنحمل الخط من الـ assets اللي أنت ضفتها أوفلاين
     final fontData = await rootBundle.load("assets/fonts/Cairo-Regular.ttf");
     final arabicFont = pw.Font.ttf(fontData);
 
@@ -262,7 +374,6 @@ class AddSaleScreen extends GetView<SalesController> {
     final dateStr = DateFormat('yyyy-MM-dd').format(now);
     final timeStr = DateFormat('HH:mm').format(now);
 
-    // 1. تعديل العرض المساحي الفعلي للطباعة لـ 72 مم بدل 80 عشان نمنع تآكل الجوانب
     const customRoll80 = PdfPageFormat(
       72 * PdfPageFormat.mm,
       double.infinity,
@@ -278,7 +389,6 @@ class AddSaleScreen extends GetView<SalesController> {
         build: (context) => pw.Directionality(
           textDirection: pw.TextDirection.rtl,
           child: pw.Padding(
-            // 2. زيادة الهامش الجانبي لـ 6 مم عشان نلم الكلام كله في النص بعيد عن الحافة
             padding: const pw.EdgeInsets.symmetric(horizontal: 6 * PdfPageFormat.mm, vertical: 2 * PdfPageFormat.mm),
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -297,12 +407,10 @@ class AddSaleScreen extends GetView<SalesController> {
                   ),
                 ),
                 pw.SizedBox(height: 10),
-
                 pw.Text('التاريخ: $dateStr', style: pw.TextStyle(font: arabicFont, fontSize: 10)),
                 pw.Text('الوقت: $timeStr', style: pw.TextStyle(font: arabicFont, fontSize: 10)),
                 pw.Text('الكاشير: ${currentUser['name']}', style: pw.TextStyle(font: arabicFont, fontSize: 10)),
                 pw.Divider(thickness: 1),
-
                 ...items.map((item) {
                   final description = _formatItemDescription(item);
                   return pw.Padding(
@@ -313,24 +421,18 @@ class AddSaleScreen extends GetView<SalesController> {
                     ),
                   );
                 }),
-
                 pw.Divider(thickness: 1),
-
                 pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
                     pw.Text('الإجمالي:', style: pw.TextStyle(font: arabicFont, fontWeight: pw.FontWeight.bold, fontSize: 12)),
-                    pw.Text('${total.toStringAsFixed(0)} ج.م',
-                        style: pw.TextStyle(font: arabicFont, fontWeight: pw.FontWeight.bold, fontSize: 13)),
+                    pw.Text('${total.toStringAsFixed(0)} ج.م', style: pw.TextStyle(font: arabicFont, fontWeight: pw.FontWeight.bold, fontSize: 13)),
                   ],
                 ),
-
                 pw.SizedBox(height: 15),
                 pw.Center(
                   child: pw.Text('شكراً لزيارتكم', style: pw.TextStyle(font: arabicFont, fontSize: 11)),
                 ),
-
-                // سطر أمان إضافي للقص من تحت طالما التعريف تالف
                 pw.SizedBox(height: 25 * PdfPageFormat.mm),
               ],
             ),
@@ -350,6 +452,7 @@ class AddSaleScreen extends GetView<SalesController> {
       AppSnackbar.error("تأكد من توصيل الطابعة الحرارية وتعيينها كافتراضية");
     }
   }
+
   String _formatItemDescription(CartItem item) {
     final name = item.productName.replaceAll('بن', '').trim();
     final qty = item.quantity;
