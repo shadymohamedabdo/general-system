@@ -30,6 +30,20 @@ class MonthlyReportController extends GetxController {
 
   // الجدول النهائي المعروض
   var tableData = <Map<String, dynamic>>[].obs;
+  // 🔍 متغير البحث
+  var searchQuery = ''.obs;
+
+  // ⚡ قائمة التقرير المفلترة لحظياً بناءً على كلمة البحث
+  List<Map<String, dynamic>> get filteredTableData {
+    if (searchQuery.value.trim().isEmpty) {
+      return tableData;
+    }
+    final query = searchQuery.value.trim().toLowerCase();
+    return tableData.where((row) {
+      final productName = (row['product_name'] ?? '').toString().toLowerCase();
+      return productName.contains(query);
+    }).toList();
+  }
 
   // فلاتر التقرير
   var selectedMonth = DateTime.now().month.obs;
@@ -47,8 +61,7 @@ class MonthlyReportController extends GetxController {
   var unitsList = <String>[].obs;
   var selectedCategory = 'بن'.obs;
   var selectedUnit = 'كيلو'.obs;
-  // var selectedCategory = RxnString();
-  // var selectedUnit = RxnString();
+
 
   // الـ Pagination للمشتريات
   var currentPage = 1.obs;

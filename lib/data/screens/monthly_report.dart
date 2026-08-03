@@ -48,6 +48,11 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
               if (controller.showAddPurchaseForm.value)
                 _buildAddPurchaseForm(),
               const SizedBox(height: 16),
+
+              // 🔍 حقل البحث عن المنتجات
+              _buildSearchBar(),
+              const SizedBox(height: 16),
+
               const _PaginatedTable(),
               const SizedBox(height: 16),
               _buildProfitCard(),
@@ -55,6 +60,34 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
           ),
         );
       }),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
+      ),
+      child: TextField(
+        onChanged: (value) => controller.searchQuery.value = value,
+        decoration: InputDecoration(
+          hintText: 'ابحث عن اسم المنتج في التقرير...',
+          hintStyle: const TextStyle(color: Colors.grey, fontSize: 14),
+          border: InputBorder.none,
+          prefixIcon: Icon(Icons.search, color: AppConfig.primaryColor),
+          suffixIcon: Obx(() => controller.searchQuery.value.isNotEmpty
+              ? IconButton(
+            icon: const Icon(Icons.clear, color: Colors.grey, size: 20),
+            onPressed: () {
+              controller.searchQuery.value = '';
+            },
+          )
+              : const SizedBox.shrink()),
+        ),
+      ),
     );
   }
 
@@ -146,8 +179,8 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
-          gradient: LinearGradient(
-            colors: [Colors.white, const Color(0xFFFDFBF7)],
+          gradient: const LinearGradient(
+            colors: [Colors.white, Color(0xFFFDFBF7)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -176,7 +209,7 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
               ),
               const SizedBox(height: 12),
-              _buildUnitDropdown(), // 👈 استبدال حقل العرض بـ Dropdown ديناميكي آمن
+              _buildUnitDropdown(),
               const SizedBox(height: 12),
 
               _buildInputField(
@@ -413,6 +446,7 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
       ),
     );
   }
+
   Widget _buildError() => Center(
     child: Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -437,15 +471,22 @@ class _PaginatedTable extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = Get.find<MonthlyReportController>();
     return Obx(() {
-      if (controller.tableData.isEmpty) {
+      final displayData = controller.filteredTableData;
+
+      if (displayData.isEmpty) {
         return Container(
           padding: const EdgeInsets.all(40),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(15),
           ),
-          child: const Center(
-            child: Text('لا توجد بيانات للعرض في هذا الشهر', style: TextStyle(color: Colors.grey)),
+          child: Center(
+            child: Text(
+              controller.searchQuery.isNotEmpty
+                  ? 'لا توجد نتائج تطابق "${controller.searchQuery.value}"'
+                  : 'لا توجد بيانات للعرض في هذا الشهر',
+              style: const TextStyle(color: Colors.grey),
+            ),
           ),
         );
       }
@@ -466,7 +507,7 @@ class _PaginatedTable extends StatelessWidget {
   }
 
   Widget _buildDesktopTable(MonthlyReportController controller) {
-    final List<DataRow> rows = controller.tableData.asMap().entries.map((entry) {
+    final List<DataRow> rows = controller.filteredTableData.asMap().entries.map((entry) {
       final index = entry.key;
       final row = entry.value;
       final profit = (row['sales_amount'] as num) - (row['purchase_cost'] as num);
@@ -477,7 +518,7 @@ class _PaginatedTable extends StatelessWidget {
           DataCell(Text('${row['sold_quantity']} ${row['unit'] ?? ''}')),
           DataCell(Text('${(row['sales_amount'] as num).toStringAsFixed(2)} ج.م')),
           DataCell(Text('${row['purchased_quantity']} ${row['unit'] ?? ''}')),
-          DataCell(Text('${(row['purchase_cost'] as num).toStringAsFixed(2)} ج.m')),
+          DataCell(Text('${(row['purchase_cost'] as num).toStringAsFixed(2)} ج.م')),
           DataCell(
             Text(
               '${profit.toStringAsFixed(2)} ج.م',
@@ -523,7 +564,8 @@ class _PaginatedTable extends StatelessWidget {
   }
 
   Widget _buildMobileTable(MonthlyReportController controller) {
-    final dataLength = controller.tableData.length;
+    final displayData = controller.filteredTableData;
+    final dataLength = displayData.length;
     return Column(
       children: [
         ListView.builder(
@@ -531,7 +573,7 @@ class _PaginatedTable extends StatelessWidget {
           physics: const NeverScrollableScrollPhysics(),
           itemCount: dataLength,
           itemBuilder: (context, index) {
-            final row = controller.tableData[index];
+            final row = displayData[index];
             final profit = (row['sales_amount'] as num) - (row['purchase_cost'] as num);
             return Card(
               margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
