@@ -259,44 +259,52 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
   }
 
   Widget _buildCategoryDropdown() {
-    return Obx(() => Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('الفئة داخل المنيو', style: TextStyle(fontWeight: FontWeight.w500)),
-        const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey[300]!),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: controller.selectedCategory.value,
-              isExpanded: true,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              items: controller.categories.map((cat) {
-                IconData icon = cat == 'بن' ? Icons.grain : (cat == 'مشروب' ? Icons.local_cafe : Icons.category);
-                return DropdownMenuItem(
-                  value: cat,
-                  child: Row(
-                    children: [
-                      Icon(icon, size: 18, color: AppConfig.primaryColor),
-                      const SizedBox(width: 8),
-                      Text(cat),
-                    ],
-                  ),
-                );
-              }).toList(),
-              onChanged: (value) {
-                if (value != null) controller.selectedCategory.value = value;
-              },
+    return Obx(() {
+      final uniqueCategories = controller.categories.toSet().toList();
+
+      // تأمين القيمة المختارة ديناميكياً
+      final selectedValue = uniqueCategories.contains(controller.selectedCategory.value)
+          ? controller.selectedCategory.value
+          : (uniqueCategories.isNotEmpty ? uniqueCategories.first : null);
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('الفئة داخل المنيو', style: TextStyle(fontWeight: FontWeight.w500)),
+          const SizedBox(height: 8),
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey[300]!),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: selectedValue,
+                isExpanded: true,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                hint: const Text('اختر الفئة'),
+                items: uniqueCategories.map((cat) {
+                  return DropdownMenuItem(
+                    value: cat,
+                    child: Row(
+                      children: [
+                        Icon(Icons.category, size: 18, color: AppConfig.primaryColor),
+                        const SizedBox(width: 8),
+                        Text(cat),
+                      ],
+                    ),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value != null) controller.selectedCategory.value = value;
+                },
+              ),
             ),
           ),
-        ),
-      ],
-    ));
+        ],
+      );
+    });
   }
-
   Widget _buildUnitDropdown() {
     return Obx(() => Column(
       crossAxisAlignment: CrossAxisAlignment.start,

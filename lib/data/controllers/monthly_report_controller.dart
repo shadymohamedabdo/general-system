@@ -97,16 +97,6 @@ class MonthlyReportController extends GetxController {
     }
   }
 
-  // تحديث تلقائي ذكي للوحدة بناء على الفئة المختارة (إذا كانت متوفرة بالداتابيز)
-  void updateUnitFromCategory(String category) {
-    if (category == 'بن' && unitsList.contains('كيلو')) {
-      selectedUnit.value = 'كيلو';
-    } else if (category == 'مشروب' && unitsList.contains('كوب')) {
-      selectedUnit.value = 'كوب';
-    } else if (unitsList.isNotEmpty && selectedUnit.value == null) {
-      selectedUnit.value = unitsList.first;
-    }
-  }
 
   void changeMonth(int month) {
     selectedMonth.value = month;
@@ -126,19 +116,32 @@ class MonthlyReportController extends GetxController {
       int month = selectedMonth.value;
       int year = selectedYear.value;
 
-      // 📥 جلب الفئات والوحدات الديناميكية أولاً لضمان عدم حدوث Crash في القوائم المنسدلة
+      // 📥 جلب الفئات والوحدات الديناميكية من الداتابيز وإزالة أي تكرارات
       final db = await dbHelper.database;
       final catData = await db.query('categories');
       final unitData = await db.query('units');
 
-      categories.assignAll(catData.map((e) => e['name'] as String).toList());
-      unitsList.assignAll(unitData.map((e) => e['name'] as String).toList());
+      final fetchedCategories = catData
+          .map((e) => e['name'] as String)
+          .where((e) => e.trim().isNotEmpty)
+          .toSet()
+          .toList();
 
-      // وضع قيم افتراضية آمنة
-      if (selectedCategory.value == null && categories.isNotEmpty) {
+      final fetchedUnits = unitData
+          .map((e) => e['name'] as String)
+          .where((e) => e.trim().isNotEmpty)
+          .toSet()
+          .toList();
+
+      categories.assignAll(fetchedCategories);
+      unitsList.assignAll(fetchedUnits);
+
+      // 🎯 تعيين أول عنصر ديناميكي متاح إذا كانت القيمة الحالية غير سليمة
+      if (categories.isNotEmpty && !categories.contains(selectedCategory.value)) {
         selectedCategory.value = categories.first;
       }
-      if (selectedUnit.value == null && unitsList.isNotEmpty) {
+
+      if (unitsList.isNotEmpty && !unitsList.contains(selectedUnit.value)) {
         selectedUnit.value = unitsList.first;
       }
 
@@ -161,6 +164,12 @@ class MonthlyReportController extends GetxController {
     }
   }
 
+// 🔄 تحديث الوحدة ديناميكياً بدون شروط ثابتة
+  void updateUnitFromCategory(String category) {
+    if (unitsList.isNotEmpty && !unitsList.contains(selectedUnit.value)) {
+      selectedUnit.value = unitsList.first;
+    }
+  }
   Future<void> loadPurchasesPage(int month, int year, int page) async {
     if (isLoadingMore.value) return;
 
