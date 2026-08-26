@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../database_helper.dart';
-import '../constants/constants.dart'; // عشان الـ AppSnackbar لو عندك
+import '../constants/constants.dart';
+import 'products_controller.dart'; // تم إضافة استيراد ProductsController للمزامنة
 
 class AttributesController extends GetxController {
   final dbHelper = DatabaseHelper.instance;
@@ -40,6 +41,12 @@ class AttributesController extends GetxController {
       final db = await dbHelper.database;
       await db.insert('categories', {'name': name.trim()});
       await loadCategories();
+
+      // 🔑 إرسال تحديث لـ ProductsController فوراً عند إضافة فئة جديدة
+      if (Get.isRegistered<ProductsController>()) {
+        Get.find<ProductsController>().loadCategoriesAndUnits();
+      }
+
       AppSnackbar.success("تمت إضافة الفئة بنجاح");
     } catch (e) {
       AppSnackbar.error("فشل إضافة الفئة");
@@ -49,9 +56,14 @@ class AttributesController extends GetxController {
   Future<void> deleteCategory(int id) async {
     try {
       final db = await dbHelper.database;
-      // تنبيه: يفضل التأكد أولاً أن الفئة غير مرتبطة بمنتجات
       await db.delete('categories', where: 'id = ?', whereArgs: [id]);
       await loadCategories();
+
+      // 🔑 إرسال تحديث لـ ProductsController فوراً عند حذف فئة
+      if (Get.isRegistered<ProductsController>()) {
+        Get.find<ProductsController>().loadCategoriesAndUnits();
+      }
+
       AppSnackbar.success("تم حذف الفئة");
     } catch (e) {
       AppSnackbar.error("فشل حذف الفئة، قد تكون مرتبطة بمنتجات");
@@ -78,6 +90,12 @@ class AttributesController extends GetxController {
       final db = await dbHelper.database;
       await db.insert('units', {'name': name.trim()});
       await loadUnits();
+
+      // 🔑 إرسال تحديث لـ ProductsController فوراً عند إضافة وحدة قياس جديدة
+      if (Get.isRegistered<ProductsController>()) {
+        Get.find<ProductsController>().loadCategoriesAndUnits();
+      }
+
       AppSnackbar.success("تمت إضافة الوحدة بنجاح");
     } catch (e) {
       AppSnackbar.error("فشل إضافة الوحدة");
@@ -89,6 +107,12 @@ class AttributesController extends GetxController {
       final db = await dbHelper.database;
       await db.delete('units', where: 'id = ?', whereArgs: [id]);
       await loadUnits();
+
+      // 🔑 إرسال تحديث لـ ProductsController فوراً عند حذف وحدة
+      if (Get.isRegistered<ProductsController>()) {
+        Get.find<ProductsController>().loadCategoriesAndUnits();
+      }
+
       AppSnackbar.success("تم حذف الوحدة");
     } catch (e) {
       AppSnackbar.error("فشل حذف الوحدة، قد تكون مرتبطة بمنتجات");

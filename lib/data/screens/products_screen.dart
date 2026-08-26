@@ -47,7 +47,7 @@ class ProductsScreen extends GetView<ProductsController> {
               tabs: tabsList.map((cat) {
                 if (cat == 'الكل') return const Tab(text: 'الكل', icon: Icon(Icons.all_inclusive));
                 if (cat == 'بن') return const Tab(text: 'ركن البن', icon: Icon(Icons.grain));
-                if (cat == 'مشروب') return const Tab(text: 'المشروبات', icon: Icon(Icons.local_cafe));
+                if (cat == 'مشروب' || cat.contains('مشروب')) return const Tab(text: 'المشروبات', icon: Icon(Icons.local_cafe));
                 return Tab(text: cat, icon: const Icon(Icons.category));
               }).toList(),
             ),
@@ -123,15 +123,8 @@ class ProductsScreen extends GetView<ProductsController> {
       cardBgColor = const Color(0xFFFFF3E0);
     }
 
-    // 🎯 تحديد اسم الوحدة المعروضة في الكارت
-    String unitLabel;
-    if (p.category == 'بن') {
-      unitLabel = 'كيلو';
-    } else if (p.category == 'مشروب' || p.category.contains('مشروب')) {
-      unitLabel = 'كوب';
-    } else {
-      unitLabel = 'قطعة';
-    }
+    // 🎯 استخدام وحدة القياس المخزنة ديناميكياً في المنتج
+    String unitLabel = p.unit.isNotEmpty ? p.unit : 'قطعة';
 
     final style = _getCategoryStyle(p.category);
 
@@ -360,7 +353,14 @@ class ProductsScreen extends GetView<ProductsController> {
             ),
             const SizedBox(height: 8),
             _buildField(controller.stockCtrl, 'مثال: 10 أو 25.5', Icons.inventory_2_rounded, isNumber: true),
-            const SizedBox(height: 20),
+            const SizedBox(height: 15),
+
+            // 🔑 قائمة التحديد الديناميكي لوحدة القياس
+            const Text('وحدة القياس:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            const SizedBox(height: 8),
+            _buildUnitDropdown(),
+
+            const SizedBox(height: 15),
             const Text('التصنيف داخل المنيو:', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
             _buildCustomSelector(),
@@ -378,6 +378,42 @@ class ProductsScreen extends GetView<ProductsController> {
         ),
       ),
     );
+  }
+
+  // 🔑 القائمة المنسدلة لاختيار وحدة القياس
+  Widget _buildUnitDropdown() {
+    return Obx(() {
+      final units = controller.unitsList;
+      final currentUnit = controller.selectedUnit.value;
+      final bool hasValue = units.contains(currentUnit);
+
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: Colors.grey[50],
+          border: Border.all(color: Colors.grey.shade200),
+          borderRadius: BorderRadius.circular(15),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            value: hasValue ? currentUnit : (units.isNotEmpty ? units.first : null),
+            isExpanded: true,
+            hint: const Text('اختر الوحدة', style: TextStyle(fontSize: 12)),
+            items: units.map((u) {
+              return DropdownMenuItem(
+                value: u,
+                child: Text(u, style: const TextStyle(fontSize: 13)),
+              );
+            }).toList(),
+            onChanged: (val) {
+              if (val != null) {
+                controller.selectedUnit.value = val;
+              }
+            },
+          ),
+        ),
+      );
+    });
   }
 
   Widget _buildCustomSelector() {

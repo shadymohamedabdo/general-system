@@ -38,6 +38,7 @@ class ProductsController extends GetxController {
     loadProducts();
   }
 
+  // 🔑 جلب الفئات والوحدات وتحديث الخيارات تلقائياً
   Future<void> loadCategoriesAndUnits() async {
     try {
       final db = await dbHelper.database;
@@ -51,6 +52,9 @@ class ProductsController extends GetxController {
 
       if (categoriesList.isNotEmpty && !categoriesList.contains(selectedCategory.value)) {
         selectedCategory.value = categoriesList.first;
+        changeCategory(categoriesList.first);
+      } else if (categoriesList.isNotEmpty) {
+        changeCategory(selectedCategory.value);
       }
     } catch (e) {
       // خطأ صامت
@@ -142,15 +146,28 @@ class ProductsController extends GetxController {
     }
   }
 
-  // 🎯 ضبط الوحدة التلقائية حسب الفئة: (بن -> كيلو | مشروب -> كوب | غيره -> قطعة)
+  // 🎯 ضبط الوحدة التلقائية ديناميكياً بناءً على الوحدات المُدخلة في القاعدة
   void changeCategory(String category) {
     selectedCategory.value = category;
-    if (category == 'بن') {
-      selectedUnit.value = 'كيلو';
-    } else if (category == 'مشروب' || category.contains('مشروب')) {
-      selectedUnit.value = 'كوب';
-    } else {
+    final cat = category.toLowerCase();
+
+    if (cat.contains('مشروب') || cat.contains('عصير') || cat.contains('عصائر')) {
+      if (unitsList.contains('كوب')) {
+        selectedUnit.value = 'كوب';
+        return;
+      }
+    } else if (cat.contains('بن')) {
+      if (unitsList.contains('كيلو')) {
+        selectedUnit.value = 'كيلو';
+        return;
+      }
+    }
+
+    // إذا لم تتطابق الشروط الخاصة، يتم تحديد "قطعة" أو أول وحدة مضافة
+    if (unitsList.contains('قطعة')) {
       selectedUnit.value = 'قطعة';
+    } else if (unitsList.isNotEmpty) {
+      selectedUnit.value = unitsList.first;
     }
   }
 
