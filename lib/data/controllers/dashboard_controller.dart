@@ -39,22 +39,30 @@ class DashboardController extends GetxController {
       int month = selectedMonth.value;
       int year = selectedYear.value;
 
-      final rawSales = await _repo.getDailySales(month, year);
-      final products = await _repo.getTopProducts(month, year);
+      // ⚡ استدعاء البيانات بالتوازي لسرعة أفضل في التحميل
+      final results = await Future.wait([
+        _repo.getDailySales(month, year),
+        _repo.getTopProducts(month, year),
+        _repo.getMonthlyExpenses(month, year),
+        _repo.getMonthlyPurchases(month, year),
+      ]);
 
-      // 1. جلب المصروفات الحقيقية (يدوي + استهلاك)
-      totalExpenses.value = await _repo.getMonthlyExpenses(month, year);
+      final rawSales = results[0] as List<DailySale>;
+      final products = results[1] as List<ProductSale>;
+      final expensesVal = results[2] as double;
+      final purchasesVal = results[3] as double;
 
-      // 2. حساب إجمالي المبيعات
+      // 1. إسناد المصروفات والمشتريات
+      totalExpenses.value = expensesVal;
+      totalPurchases.value = purchasesVal;
+
+      // 2. حساب إجمالي المبيعات (تيك أواي + ترابيزات)
       totalSales.value = rawSales.fold(0.0, (sum, e) => sum + e.total);
 
-      // 🔥 3. جلب المشتريات الحقيقية للشهر والسنة المحددة بدلاً من تصفيرها
-      totalPurchases.value = await _repo.getMonthlyPurchases(month, year);
+      // 3. الحسبة المالية لصافي الأرباح (المبيعات - المصروفات الكلية)
+      netProfit.value = totalSales.value - totalExpenses.value;
 
-      // 4. الحسبة المالية لصافي الأرباح (المبيعات - المشتريات - المصروفات)
-      netProfit.value = totalSales.value - totalPurchases.value - totalExpenses.value;
-
-      // 5. بناء الشارت
+      // 4. بناء الشارت لأيام الشهر بالكامل
       int daysInMonth = DateTime(year, month + 1, 0).day;
       List<DailySale> fullMonth = [];
 
@@ -70,7 +78,8 @@ class DashboardController extends GetxController {
       topProducts.assignAll(products);
 
       if (fullMonth.isNotEmpty) {
-        maxDailySales.value = fullMonth.map((e) => e.total).reduce((a, b) => a > b ? a : b) * 1.2;
+        final maxSale = fullMonth.map((e) => e.total).reduce((a, b) => a > b ? a : b);
+        maxDailySales.value = maxSale > 0 ? maxSale * 1.2 : 100.0;
       }
     } catch (e) {
       hasError(true);
@@ -81,11 +90,13 @@ class DashboardController extends GetxController {
   }
 
   void changeMonth(int month) {
+    if (selectedMonth.value == month) return;
     selectedMonth.value = month;
     loadAllData();
   }
 
   void changeYear(int year) {
+    if (selectedYear.value == year) return;
     selectedYear.value = year;
     loadAllData();
   }

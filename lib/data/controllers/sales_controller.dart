@@ -238,25 +238,41 @@ class SalesController extends GetxController {
     currentTableOrders.assignAll(orders);
   }
   // في SalesController
-  Future<bool> checkoutAndGetTableOrders(int tableNum) async {
-    // جلب كافة طلبات الترابيزة قبل التقفيل
+  Future<bool> checkoutAndGetTableOrders(int tableNum, int userId) async {
     final orders = await dbHelper.getTableOrders(tableNum);
-    if (orders.isEmpty && cartItems.isEmpty) {
-      AppSnackbar.warning("لا توجد طلبات لهذه الترابيزة لتقفيلها");
+    if (orders.isEmpty && cartItems.isEmpty) return false;
+
+    int? shiftId = await dbHelper.getOpenShiftId();
+    if (shiftId == null) {
+      AppSnackbar.error("لا يوجد شيفت مفتوح لإغلاق الفاتورة");
       return false;
     }
 
-    // تقفيل جلسة الترابيزة من قاعدة البيانات
+    // 1. نقل الطلبيات القديمة للترابيزة إلى جدول sales الرئيسي عبر SalesRepository
+    for (var order in orders) {
+      await salesRepo.addSale(
+        shiftId: shiftId,
+        userId: userId,
+        productId: order['product_id'] as int,
+        quantity: (order['quantity'] as num).toDouble(),
+        unitPrice: (order['unit_price'] as num).toDouble(),
+        totalAmount: (order['total_price'] as num).toDouble(),
+      );
+    }
+
+    // 2. تنظيف جلسة الترابيزة
     await dbHelper.clearTableSession(tableNum);
     currentTableOrders.clear();
     currentTableNumber.value = null;
     cartItems.clear();
 
-    AppSnackbar.success("تم تقفيل حساب الترابيزة $tableNum بنجاح");
+    // 3. تحديث قائمة المنتجات وإشعار النظام بتحديث المبيعات
+    await loadProducts();
+    DatabaseHelper.notifySalesChanged();
+
     return true;
   }
-
-// دالة تقفيل الحساب وإغلاق الترابيزة
+  // دالة تقفيل الحساب وإغلاق الترابيزة
   Future<void> checkoutTable(int tableNum) async {
     await dbHelper.clearTableSession(tableNum);
     currentTableOrders.clear();

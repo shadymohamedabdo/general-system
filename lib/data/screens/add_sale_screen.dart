@@ -560,8 +560,7 @@ class AddSaleScreen extends GetView<SalesController> {
 
                 // 3. تقفيل الحساب وتفريغ الترابيزة
                 if (tableNum != null) {
-                  await controller.checkoutAndGetTableOrders(tableNum);
-                } else {
+                  await controller.checkoutAndGetTableOrders(tableNum, currentUser['id']);                } else {
                   controller.cartItems.clear();
                 }
               } else {

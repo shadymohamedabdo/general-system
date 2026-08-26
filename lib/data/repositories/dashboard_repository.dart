@@ -25,7 +25,7 @@ class DashboardRepository {
     )).toList();
   }
 
-  /// أعلى 5 منتجات مبيعًا - مع جلب الوحدة والترتيب حسب الإيراد
+  /// أعلى 5 منتجات مبيعًا
   Future<List<ProductSale>> getTopProducts(int month, int year) async {
     final db = await DatabaseHelper.instance.database;
     final monthStr = month.toString().padLeft(2, '0');
@@ -56,19 +56,17 @@ class DashboardRepository {
     )).toList();
   }
 
-  /// جلب إجمالي المصروفات (المصروفات اليدوية + تكلفة المواد المستهلكة من المبيعات)
+  /// جلب إجمالي المصروفات (المصروفات اليدوية + تكلفة خام المبيعات)
   Future<double> getMonthlyExpenses(int month, int year) async {
     final db = await DatabaseHelper.instance.database;
     final monthStr = month.toString().padLeft(2, '0');
 
     final result = await db.rawQuery('''
       SELECT (
-        -- 1. مجموع المصروفات اليدوية من جدول expenses
         SELECT COALESCE(SUM(amount), 0) 
         FROM expenses 
         WHERE strftime('%m', date) = ? AND strftime('%Y', date) = ?
       ) + (
-        -- 2. مجموع تكلفة المواد الخام المستهلكة بناءً على كميات المبيعات النشطة
         SELECT COALESCE(SUM(s.quantity * p.cost_price), 0)
         FROM sales s
         JOIN products p ON s.product_id = p.id
@@ -81,7 +79,7 @@ class DashboardRepository {
     return (result.first['total'] as num?)?.toDouble() ?? 0.0;
   }
 
-  /// 🔥 دالة جلب إجمالي المشتريات من جدول purchases الفعلي
+  /// جلب إجمالي المشتريات
   Future<double> getMonthlyPurchases(int month, int year) async {
     final db = await DatabaseHelper.instance.database;
 
