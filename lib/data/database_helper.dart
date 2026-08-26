@@ -3,7 +3,7 @@ import 'package:path/path.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 
-/// كلاس مسؤول عن إدارة قاعدة البيانات بالكامل مع دعم الأنشطة الديناميكية والأمان
+/// كلاس مسؤول عن إدارة قاعدة البيانات بالكامل مع دعم الأنشطة الديناميكية والأمان ونظام الترابيزات المفتوحة
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _db;
@@ -12,14 +12,20 @@ class DatabaseHelper {
 
   static final _salesStreamController = StreamController<void>.broadcast();
   static final _shiftsStreamController = StreamController<void>.broadcast();
+  static final _tablesStreamController = StreamController<void>.broadcast();
 
   static Stream<void> get salesStream => _salesStreamController.stream;
   static Stream<void> get shiftsStream => _shiftsStreamController.stream;
+  static Stream<void> get tablesStream => _tablesStreamController.stream;
+
   static void notifySalesChanged() => _salesStreamController.add(null);
   static void notifyShiftsChanged() => _shiftsStreamController.add(null);
+  static void notifyTablesChanged() => _tablesStreamController.add(null);
+
   static void disposeStreams() {
     _salesStreamController.close();
     _shiftsStreamController.close();
+    _tablesStreamController.close();
   }
 
   Future<Database> get database async {
@@ -36,7 +42,7 @@ class DatabaseHelper {
     return await databaseFactoryFfi.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 16, // 🛠️ تم الرفع إلى 16 لدعم جداول الأقسام والوحدات الديناميكية
+        version: 17, // 🛠️ تم الرفع إلى 17 لدعم جداول الترابيزات والجلسات المفتوحة
         onCreate: _createDB,
         onUpgrade: _onUpgrade,
         onConfigure: _onConfigure,
@@ -172,16 +178,54 @@ class DatabaseHelper {
       )
     ''');
 
+    // 🔟 جدول الترابيزات (1 لـ 30)
+    await db.execute('''
+      CREATE TABLE tables (
+        table_number INTEGER PRIMARY KEY,
+        is_open INTEGER DEFAULT 0,
+        opened_at TEXT
+      )
+    ''');
+
+    // 1️⃣1️⃣ جدول طلبات الترابيزات المفتوحة (تظل متجمعة لحين الحساب النهائي)
+    await db.execute('''
+      CREATE TABLE table_orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        table_number INTEGER NOT NULL,
+        product_id INTEGER,
+        product_name TEXT NOT NULL,
+        quantity REAL NOT NULL,
+        unit_price REAL NOT NULL,
+        total_price REAL NOT NULL,
+        is_sent_to_kitchen INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (table_number) REFERENCES tables(table_number) ON DELETE CASCADE
+      )
+    ''');
+
     // إضافة الفهارس لتحسين الأداء
     await db.execute('CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date)');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_expenses_shift_id ON expenses(shift_id)');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_sales_created_at ON sales(created_at)');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_sales_shift_id ON sales(shift_id)');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_shifts_is_open ON shifts(is_open)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_table_orders_table_num ON table_orders(table_number)');
 
     await _createDefaultAdmin(db);
     await _initSecurityTable(db);
     await _insertDefaultCategoriesAndUnits(db);
+    await _initDefaultTables(db);
+  }
+
+  /// إنشاء الترابيزات الـ 30 تلقائياً لأول مرة
+  Future<void> _initDefaultTables(Database db) async {
+    for (int i = 1; i <= 30; i++) {
+      await db.insert(
+        'tables',
+        {'table_number': i, 'is_open': 0, 'opened_at': null},
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
+    }
   }
 
   Future<void> _insertDefaultCategoriesAndUnits(Database db) async {
@@ -204,9 +248,12 @@ class DatabaseHelper {
       await txn.delete('expenses');
       await txn.delete('shifts');
       await txn.delete('products');
+      await txn.delete('table_orders');
+      await txn.update('tables', {'is_open': 0, 'opened_at': null});
     });
     notifySalesChanged();
     notifyShiftsChanged();
+    notifyTablesChanged();
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -283,7 +330,148 @@ class DatabaseHelper {
         await _insertDefaultCategoriesAndUnits(db);
       } catch (e) {}
     }
+    if (oldVersion < 17) {
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS tables (
+            table_number INTEGER PRIMARY KEY,
+            is_open INTEGER DEFAULT 0,
+            opened_at TEXT
+          )
+        ''');
+
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS table_orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            table_number INTEGER NOT NULL,
+            product_id INTEGER,
+            product_name TEXT NOT NULL,
+            quantity REAL NOT NULL,
+            unit_price REAL NOT NULL,
+            total_price REAL NOT NULL,
+            is_sent_to_kitchen INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (table_number) REFERENCES tables(table_number) ON DELETE CASCADE
+          )
+        ''');
+
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_table_orders_table_num ON table_orders(table_number)');
+        await _initDefaultTables(db);
+      } catch (e) {}
+    }
   }
+
+  // ==========================================
+  // 🍽️ دوال التعامل مع الترابيزات المفتوحة
+  // ==========================================
+
+  /// جلب كافة طلبات ترابيزة معينة
+  Future<List<Map<String, dynamic>>> getTableOrders(int tableNumber) async {
+    final db = await database;
+    return await db.query(
+      'table_orders',
+      where: 'table_number = ?',
+      whereArgs: [tableNumber],
+      orderBy: 'id ASC',
+    );
+  }
+
+  /// إدخال عنصر جديد لطلب ترابيزة مفتوحة
+  Future<void> addOrUpdateTableOrderItem({
+    required int tableNumber,
+    required int? productId,
+    required String productName,
+    required double quantity,
+    required double unitPrice,
+  }) async {
+    final db = await database;
+    final now = DateTime.now().toIso8601String();
+
+    await db.transaction((txn) async {
+      // 1. فتح الترابيزة لو كانت مقفولة
+      await txn.rawUpdate(
+        '''UPDATE tables SET is_open = 1, opened_at = COALESCE(opened_at, ?) WHERE table_number = ?''',
+        [now, tableNumber],
+      );
+
+      // 2. فحص إذا كان المنتج غير مطبوع بعد للمطبخ لدمج الكمية
+      final existing = await txn.query(
+        'table_orders',
+        where: 'table_number = ? AND product_name = ? AND is_sent_to_kitchen = 0',
+        whereArgs: [tableNumber, productName],
+      );
+
+      if (existing.isNotEmpty) {
+        double currentQty = (existing.first['quantity'] as num).toDouble();
+        double newQty = currentQty + quantity;
+        double newTotal = newQty * unitPrice;
+
+        await txn.update(
+          'table_orders',
+          {'quantity': newQty, 'total_price': newTotal},
+          where: 'id = ?',
+          whereArgs: [existing.first['id']],
+        );
+      } else {
+        await txn.insert('table_orders', {
+          'table_number': tableNumber,
+          'product_id': productId,
+          'product_name': productName,
+          'quantity': quantity,
+          'unit_price': unitPrice,
+          'total_price': quantity * unitPrice,
+          'is_sent_to_kitchen': 0,
+          'created_at': now,
+        });
+      }
+    });
+
+    notifyTablesChanged();
+  }
+
+  /// تعليم طلبات المطبخ الجديدة بأنها أُرسلت وطُبعت
+  Future<void> markOrdersAsSentToKitchen(int tableNumber) async {
+    final db = await database;
+    await db.update(
+      'table_orders',
+      {'is_sent_to_kitchen': 1},
+      where: 'table_number = ? AND is_sent_to_kitchen = 0',
+      whereArgs: [tableNumber],
+    );
+    notifyTablesChanged();
+  }
+
+  /// إغلاق حساب الترابيزة وتفريغ الطلبات (عند دفع الفاتورة ومغادرة الزبون)
+  Future<void> clearTableSession(int tableNumber) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.delete('table_orders', where: 'table_number = ?', whereArgs: [tableNumber]);
+      await txn.update('tables', {'is_open': 0, 'opened_at': null}, where: 'table_number = ?', whereArgs: [tableNumber]);
+    });
+    notifyTablesChanged();
+  }
+
+  /// جلب كافة الترابيزات الـ 30 مع حالة كل منها والإجمالي
+  Future<List<Map<String, dynamic>>> getAllTablesWithTotals() async {
+    final db = await database;
+    final res = await db.rawQuery('''
+      SELECT 
+        t.table_number,
+        t.is_open,
+        t.opened_at,
+        COALESCE(SUM(o.total_price), 0.0) AS total_amount,
+        COUNT(o.id) AS items_count
+      FROM tables t
+      LEFT JOIN table_orders o ON t.table_number = o.table_number
+      GROUP BY t.table_number
+      ORDER BY t.table_number ASC
+    ''');
+    return res;
+  }
+
+  // ==========================================
+  // 🔐 الأمان والمستخدمين والشيفتات
+  // ==========================================
 
   Future<void> _createDefaultAdmin(Database db) async {
     final result = await db.query('users', where: 'username = ?', whereArgs: ['shady']);
@@ -396,12 +584,11 @@ class DatabaseHelper {
     return cleanedInput.isNotEmpty && cleanedInput == dynamicDailyPassword;
   }
 
-  // 🛑 درع حماية الأدمن الرئيسي: يمنع تماماً حذف حساب شادي ويستقبل الباراميترين بشكل صحيح
+  // 🛑 درع حماية الأدمن الرئيسي: يمنع تماماً حذف حساب شادي
   Future<int> deleteUser(int userId, String username) async {
-    // التحقق الصارم بالاسم: لو اليوزر نيم هو shady، ارفض الحذف فوراً ورجّع صفر للـ Controller
     if (username.trim().toLowerCase() == 'shady') {
       print("🚨 محاولة محظورة لحذف الأدمن الرئيسي المالك للنظام!");
-      return 0; // 0 تعني لم يتم حذف أي سطر لحماية الحساب من المسح
+      return 0;
     }
 
     final db = await database;

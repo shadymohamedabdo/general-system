@@ -188,6 +188,81 @@ class SalesController extends GetxController {
     );
   }
   // ================= فلترة المنتجات للمبيعات =================
+// 🔹 متغير رقم الترابيزة (يكون null إذا كانت الفاتورة تيك أواي)
+  var currentTableNumber = RxnInt();
+
+// 🔹 دالة الحفظ الذكية (تيك أواي أو ترابيزات)
+  Future<bool> saveCartOrAddToTable(int userId) async {
+    if (cartItems.isEmpty) return false;
+
+    // 🔴 1. حالة إضافة طلبات لترابيزة مفتوحة
+    if (currentTableNumber.value != null) {
+      try {
+        for (var item in cartItems) {
+          await dbHelper.addOrUpdateTableOrderItem(
+            tableNumber: currentTableNumber.value!,
+            productId: item.productId,
+            productName: item.productName,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+          );
+        }
+        cartItems.clear();
+        resetFields();
+        AppSnackbar.success("تمت إضافة الطلبات للترابيزة ${currentTableNumber.value}");
+        return true;
+      } catch (e) {
+        AppSnackbar.error("خطأ أثناء إضافة الطلبات للترابيزة: $e");
+        return false;
+      }
+    }
+
+    // 🟢 2. حالة الفاتورة الفورية (تيك أواي / سفري)
+    return await saveCart(userId);
+  }
+
+  // في SalesController
+  var currentTableOrders = <Map<String, dynamic>>[].obs;
+
+  void selectTable(int? tableNum) async {
+    currentTableNumber.value = tableNum;
+    if (tableNum != null) {
+      await loadTableOrders(tableNum);
+    } else {
+      currentTableOrders.clear();
+    }
+  }
+
+  Future<void> loadTableOrders(int tableNum) async {
+    final orders = await dbHelper.getTableOrders(tableNum);
+    currentTableOrders.assignAll(orders);
+  }
+  // في SalesController
+  Future<bool> checkoutAndGetTableOrders(int tableNum) async {
+    // جلب كافة طلبات الترابيزة قبل التقفيل
+    final orders = await dbHelper.getTableOrders(tableNum);
+    if (orders.isEmpty && cartItems.isEmpty) {
+      AppSnackbar.warning("لا توجد طلبات لهذه الترابيزة لتقفيلها");
+      return false;
+    }
+
+    // تقفيل جلسة الترابيزة من قاعدة البيانات
+    await dbHelper.clearTableSession(tableNum);
+    currentTableOrders.clear();
+    currentTableNumber.value = null;
+    cartItems.clear();
+
+    AppSnackbar.success("تم تقفيل حساب الترابيزة $tableNum بنجاح");
+    return true;
+  }
+
+// دالة تقفيل الحساب وإغلاق الترابيزة
+  Future<void> checkoutTable(int tableNum) async {
+    await dbHelper.clearTableSession(tableNum);
+    currentTableOrders.clear();
+    currentTableNumber.value = null;
+    AppSnackbar.success("تم تقفيل حساب الترابيزة $tableNum بنجاح");
+  }
 
   // ================= تغيير الكاتيجوري =================
   void onCategoryChanged(String? val) {

@@ -41,7 +41,7 @@ class AddSaleScreen extends GetView<SalesController> {
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Container(
-                width: 550,
+                width: 600,
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.95),
@@ -59,7 +59,9 @@ class AddSaleScreen extends GetView<SalesController> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         _buildHeader(),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 16),
+                        _buildTableSelector(context), // 🍽️ تحديد الترابيزة
+                        const SizedBox(height: 16),
                         _buildCategoryDropdown(),
                         if (controller.selectedCategory.value != null) ...[
                           const SizedBox(height: 16),
@@ -89,12 +91,156 @@ class AddSaleScreen extends GetView<SalesController> {
 
   Widget _buildHeader() => Column(
     children: [
-      const Icon(Icons.shopping_basket_outlined, size: 50, color: Colors.brown),
-      const SizedBox(height: 10),
-      const Text('إضافة مبيعات', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+      const Icon(Icons.shopping_basket_outlined, size: 48, color: Colors.brown),
+      const SizedBox(height: 8),
+      const Text('نقطة البيع والترابيزات', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
       Text('الموظف الحالي: ${currentUser['name']}', style: const TextStyle(color: Colors.grey)),
     ],
   );
+
+  Widget _buildTableSelector(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: controller.currentTableNumber.value == null
+            ? Colors.orange.shade50
+            : Colors.brown.shade50,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: controller.currentTableNumber.value == null
+              ? Colors.orange.shade300
+              : Colors.brown.shade300,
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Icon(
+                controller.currentTableNumber.value == null
+                    ? Icons.takeout_dining
+                    : Icons.table_restaurant,
+                color: controller.currentTableNumber.value == null
+                    ? Colors.orange.shade800
+                    : Colors.brown.shade800,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                controller.currentTableNumber.value == null
+                    ? 'الطلب حالياً: تيك أواي / سفري'
+                    : 'الطلب لـ: ترابيزة ${controller.currentTableNumber.value}',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                  color: controller.currentTableNumber.value == null
+                      ? Colors.orange.shade900
+                      : Colors.brown.shade900,
+                ),
+              ),
+            ],
+          ),
+          ElevatedButton.icon(
+            onPressed: () => _showTableSelectionDialog(context),
+            icon: const Icon(Icons.grid_view_rounded, size: 18, color: Colors.white),
+            label: Text(
+              controller.currentTableNumber.value == null ? 'تحديد ترابيزة' : 'تغيير الترابيزة',
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.brown[700],
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTableSelectionDialog(BuildContext context) {
+    Get.dialog(
+      Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          width: 450,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('اختر الترابيزة', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  IconButton(icon: const Icon(Icons.close), onPressed: () => Get.back()),
+                ],
+              ),
+              const Divider(),
+              const SizedBox(height: 10),
+              ListTile(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: Colors.grey.shade300),
+                ),
+                leading: const Icon(Icons.takeout_dining, color: Colors.orange),
+                title: const Text('تيك أواي / سفري (بدون ترابيزة)', style: TextStyle(fontWeight: FontWeight.bold)),
+                trailing: controller.currentTableNumber.value == null
+                    ? const Icon(Icons.check_circle, color: Colors.green)
+                    : null,
+                onTap: () {
+                  controller.selectTable(null);
+                  Get.back();
+                },
+              ),
+              const SizedBox(height: 15),
+              SizedBox(
+                height: 300,
+                child: GridView.builder(
+                  shrinkWrap: true,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 5,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                  ),
+                  itemCount: 30,
+                  itemBuilder: (context, index) {
+                    final tableNum = index + 1;
+                    final isSelected = controller.currentTableNumber.value == tableNum;
+                    return InkWell(
+                      onTap: () {
+                        controller.selectTable(tableNum);
+                        Get.back();
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: isSelected ? Colors.brown : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected ? Colors.brown : Colors.grey.shade400,
+                            width: 2,
+                          ),
+                        ),
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.table_restaurant, color: isSelected ? Colors.white : Colors.brown, size: 22),
+                              const SizedBox(height: 4),
+                              Text('$tableNum', style: TextStyle(fontWeight: FontWeight.bold, color: isSelected ? Colors.white : Colors.black87)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _buildCategoryDropdown() {
     return Obx(() {
@@ -105,19 +251,17 @@ class AddSaleScreen extends GetView<SalesController> {
           prefixIcon: const Icon(Icons.category_outlined, color: Colors.brown),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
         ),
-        // 🔑 تحويل القائمة إلى ديناميكية بناءً على الفئات المتاحة فعلياً
         items: controller.categories.map((category) {
           return DropdownMenuItem<String>(
             value: category,
             child: Text(category),
           );
         }).toList(),
-        onChanged: (val) {
-          controller.onCategoryChanged(val);
-        },
+        onChanged: (val) => controller.onCategoryChanged(val),
       );
     });
   }
+
   Widget _buildSearchBar() => TextFormField(
     decoration: InputDecoration(
       hintText: '🔍 ابحث عن منتج هنا...',
@@ -246,45 +390,76 @@ class AddSaleScreen extends GetView<SalesController> {
 
   Widget _buildCartSection() {
     return Obx(() {
-      if (controller.cartItems.isEmpty) return const SizedBox.shrink();
+      final tableNum = controller.currentTableNumber.value;
+      final savedOrders = controller.currentTableOrders;
+      final cartItems = controller.cartItems;
+
+      if (cartItems.isEmpty && savedOrders.isEmpty) return const SizedBox.shrink();
+
+      double savedTotal = savedOrders.fold(0.0, (sum, item) => sum + ((item['total_price'] ?? 0) as num).toDouble());
+      double totalAll = controller.orderTotal + savedTotal;
+
       return Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.grey[50], borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.grey[300]!)),
+        decoration: BoxDecoration(
+          color: Colors.grey[50],
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: Colors.grey[300]!),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('📋 الأوردر الحالي (عدة منتجات):', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: controller.cartItems.length,
-              itemBuilder: (context, index) {
-                final item = controller.cartItems[index];
-                return ListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(item.productName),
-                  subtitle: Text('${item.quantity.toStringAsFixed(2)} × ${item.unitPrice.toStringAsFixed(2)} ج.م'),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text('${item.total.toStringAsFixed(2)} ج.م'),
-                      IconButton(
-                        icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
-                        onPressed: () => controller.removeCartItem(index),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-            const Divider(),
+            // الطلبات المحفوظة سابقاً
+            if (tableNum != null && savedOrders.isNotEmpty) ...[
+              Text('📌 الأصناف المسجلة على ترابيزة ($tableNum):', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.brown)),
+              const SizedBox(height: 6),
+              ...savedOrders.map((order) => ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text(order['product_name'] ?? ''),
+                subtitle: Text('${order['quantity']} × ${order['unit_price']} ج.م'),
+                trailing: Text('${order['total_price']} ج.م', style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
+              const Divider(),
+            ],
+
+            // الأصناف الجديدة
+            if (cartItems.isNotEmpty) ...[
+              const Text('📋 أصناف جديدة قيد الإضافة:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+              const SizedBox(height: 6),
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: cartItems.length,
+                itemBuilder: (context, index) {
+                  final item = cartItems[index];
+                  return ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(item.productName),
+                    subtitle: Text('${item.quantity.toStringAsFixed(2)} × ${item.unitPrice.toStringAsFixed(2)} ج.م'),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('${item.total.toStringAsFixed(2)} ج.م'),
+                        IconButton(
+                          icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
+                          onPressed: () => controller.removeCartItem(index),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              const Divider(),
+            ],
+
+            // السعر النهائي والمجموع
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('الإجمالي:', style: TextStyle(fontWeight: FontWeight.bold)),
-                Text('${controller.orderTotal.toStringAsFixed(2)} ج.م', style: const TextStyle(color: Colors.brown, fontWeight: FontWeight.bold)),
+                const Text('السعر النهائي للترابيزة:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                Text('${totalAll.toStringAsFixed(2)} ج.م', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 20)),
               ],
             ),
           ],
@@ -294,74 +469,111 @@ class AddSaleScreen extends GetView<SalesController> {
   }
 
   Widget _buildActionButtons() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+    final tableNum = controller.currentTableNumber.value;
+    final hasSavedOrders = controller.currentTableOrders.isNotEmpty;
+
+    return Column(
       children: [
-        Obx(() => Badge(
-          label: Text('${controller.cartItems.length}'),
-          isLabelVisible: controller.cartItems.isNotEmpty,
-          child: IconButton(
-            icon: const Icon(Icons.shopping_cart_outlined, color: Colors.brown, size: 32),
-            onPressed: controller.addToCart,
-            tooltip: 'إضافة المنتج الحالي للسلة',
-          ),
-        )),
-        const SizedBox(width: 8),
-        const Spacer(),
-        Expanded(
-          child: ElevatedButton(
-            onPressed: controller.isSaving.value
-                ? null
-                : () async {
-              if (controller.cartItems.isNotEmpty) {
-                await controller.saveCart(currentUser['id']);
-              } else {
-                await controller.saveSingleProduct(currentUser['id']);
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey[700]),
-            child: const Text('حفظ الفاتورة 💾', style: TextStyle(color: Colors.white)),
-          ),
+        Row(
+          children: [
+            Obx(() => Badge(
+              label: Text('${controller.cartItems.length}'),
+              isLabelVisible: controller.cartItems.isNotEmpty,
+              child: IconButton(
+                icon: const Icon(Icons.add_shopping_cart, color: Colors.brown, size: 32),
+                onPressed: controller.addToCart,
+                tooltip: 'إضافة الصنف الحالي للطلب',
+              ),
+            )),
+            const SizedBox(width: 8),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: controller.isSaving.value
+                    ? null
+                    : () async {
+                  if (controller.cartItems.isEmpty && controller.selectedProductId.value != null) {
+                    controller.addToCart();
+                  }
+                  await controller.saveCartOrAddToTable(currentUser['id']);
+                },
+                icon: const Icon(Icons.save, color: Colors.white),
+                label: Text(
+                  tableNum == null ? 'حفظ الطلب 💾' : 'حفظ للترابيزة 🍽️',
+                  style: const TextStyle(color: Colors.white),
+                ),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey[700]),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // زر المطبخ
+            if (tableNum != null) ...[
+              IconButton(
+                icon: const Icon(Icons.soup_kitchen, color: Colors.orange, size: 30),
+                tooltip: 'إرسال للمطبخ',
+                onPressed: () async {
+                  await controller.dbHelper.markOrdersAsSentToKitchen(tableNum);
+                  AppSnackbar.success("تم إرسال الطلبات للمطبخ 👨‍🍳");
+                },
+              ),
+            ],
+          ],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: ElevatedButton(
+        const SizedBox(height: 12),
+        // 🔥 زر تقفيل الحساب + الطباعة السريعة المباشرة
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: ElevatedButton.icon(
             onPressed: controller.isSaving.value
                 ? null
                 : () async {
-              List<CartItem> itemsToPrint = [];
-              double totalToPrint = 0;
-              bool success = false;
-              if (controller.cartItems.isNotEmpty) {
-                itemsToPrint = List.from(controller.cartItems);
-                totalToPrint = controller.orderTotal;
-                success = await controller.saveCart(currentUser['id']);
-              } else {
-                if (controller.selectedProductId.value != null) {
-                  final product = controller.products.firstWhere((p) => p.id == controller.selectedProductId.value);
-                  itemsToPrint = [
-                    CartItem(
-                      productId: product.id!,
-                      productName: product.name,
-                      quantity: controller.quantity.value,
-                      unitPrice: controller.unitPrice.value,
-                      total: controller.currentTotal,
-                      category: product.category,
-                    )
-                  ];
-                  totalToPrint = controller.currentTotal;
-                  success = await controller.saveSingleProduct(currentUser['id']);
-                } else {
-                  AppSnackbar.warning("لا توجد فاتورة للطباعة");
-                  return;
-                }
+              // 1. تجميع المنتجات للطباعة
+              List<CartItem> allItemsToPrint = List.from(controller.cartItems);
+
+              // سحب أيمات الترابيزة القديمة وتحويلها لـ CartItem
+              for (var o in controller.currentTableOrders) {
+                allItemsToPrint.add(CartItem(
+                  productId: o['product_id'] ?? 0,
+                  productName: o['product_name'] ?? '',
+                  category: o['category'] ?? 'عام',
+                  unitPrice: ((o['unit_price'] ?? 0) as num).toDouble(),
+                  quantity: ((o['quantity'] ?? 1) as num).toDouble(),
+                  total: ((o['total_price'] ?? 0) as num).toDouble(),
+                ));
               }
-              if (success) {
-                await _printInvoice(itemsToPrint, totalToPrint);
+
+              if (allItemsToPrint.isEmpty && controller.selectedProductId.value != null) {
+                controller.addToCart();
+                allItemsToPrint = List.from(controller.cartItems);
+              }
+
+              if (allItemsToPrint.isNotEmpty) {
+                double totalAmount = allItemsToPrint.fold(0.0, (sum, item) => sum + item.total);
+
+                // حفظ أي منتجات جديدة أضيفت
+                if (controller.cartItems.isNotEmpty) {
+                  await controller.saveCartOrAddToTable(currentUser['id']);
+                }
+
+                // 2. طباعة الفاتورة النهائية للعميل
+                await _printInvoice(allItemsToPrint, totalAmount);
+
+                // 3. تقفيل الحساب وتفريغ الترابيزة
+                if (tableNum != null) {
+                  await controller.checkoutAndGetTableOrders(tableNum);
+                } else {
+                  controller.cartItems.clear();
+                }
+              } else {
+                AppSnackbar.warning("لا توجد أصناف لتقفيل الحساب والطباعة");
               }
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.brown[700]),
-            child: const Text('حفظ وطباعة 🖨️', style: TextStyle(color: Colors.white)),
+            icon: const Icon(Icons.print_rounded, color: Colors.white, size: 24),
+            label: Text(
+              tableNum != null ? 'تفعيل السعر النهائي وتقفيل الحساب + طباعة 🖨️' : 'تفعيل السعر النهائي وطباعة 🖨️',
+              style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade800),
           ),
         ),
       ],
@@ -387,6 +599,10 @@ class AddSaleScreen extends GetView<SalesController> {
       marginRight: 0,
     );
 
+    final tableHeader = controller.currentTableNumber.value != null
+        ? 'طلب ترابيزة: ${controller.currentTableNumber.value}'
+        : 'فاتورة مبيعات (سفري)';
+
     pdf.addPage(
       pw.Page(
         pageFormat: customRoll80,
@@ -406,7 +622,7 @@ class AddSaleScreen extends GetView<SalesController> {
                 pw.SizedBox(height: 5),
                 pw.Center(
                   child: pw.Text(
-                    'فاتورة مبيعات',
+                    tableHeader,
                     style: pw.TextStyle(font: arabicFont, fontSize: 13, fontWeight: pw.FontWeight.bold),
                   ),
                 ),
@@ -429,8 +645,8 @@ class AddSaleScreen extends GetView<SalesController> {
                 pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
-                    pw.Text('الإجمالي:', style: pw.TextStyle(font: arabicFont, fontWeight: pw.FontWeight.bold, fontSize: 12)),
-                    pw.Text('${total.toStringAsFixed(0)} ج.م', style: pw.TextStyle(font: arabicFont, fontWeight: pw.FontWeight.bold, fontSize: 13)),
+                    pw.Text('السعر النهائي والإجمالي:', style: pw.TextStyle(font: arabicFont, fontWeight: pw.FontWeight.bold, fontSize: 11)),
+                    pw.Text('${total.toStringAsFixed(0)} ج.م', style: pw.TextStyle(font: arabicFont, fontWeight: pw.FontWeight.bold, fontSize: 14)),
                   ],
                 ),
                 pw.SizedBox(height: 15),
@@ -451,7 +667,7 @@ class AddSaleScreen extends GetView<SalesController> {
         name: 'receipt_${DateTime.now().millisecondsSinceEpoch}',
         format: customRoll80,
       );
-      AppSnackbar.success("تم طباعة الفاتورة بنجاح");
+      AppSnackbar.success("تمت الطباعة وتقفيل الحساب بنجاح");
     } catch (e) {
       AppSnackbar.error("تأكد من توصيل الطابعة الحرارية وتعيينها كافتراضية");
     }
