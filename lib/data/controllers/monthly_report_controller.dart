@@ -1,5 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:path_provider/path_provider.dart';
+
 import '../constants/constants.dart';
 import '../database_helper.dart'; // 👈 استيراد الداتابيز لجلب الفئات والوحدات
 import '../repositories/reports_repository.dart';
@@ -62,7 +68,6 @@ class MonthlyReportController extends GetxController {
   var selectedCategory = 'بن'.obs;
   var selectedUnit = 'كيلو'.obs;
 
-
   // الـ Pagination للمشتريات
   var currentPage = 1.obs;
   var hasMoreData = true.obs;
@@ -96,7 +101,6 @@ class MonthlyReportController extends GetxController {
       totalCostCtrl.text = '';
     }
   }
-
 
   void changeMonth(int month) {
     selectedMonth.value = month;
@@ -164,12 +168,13 @@ class MonthlyReportController extends GetxController {
     }
   }
 
-// 🔄 تحديث الوحدة ديناميكياً بدون شروط ثابتة
+  // 🔄 تحديث الوحدة ديناميكياً بدون شروط ثابتة
   void updateUnitFromCategory(String category) {
     if (unitsList.isNotEmpty && !unitsList.contains(selectedUnit.value)) {
       selectedUnit.value = unitsList.first;
     }
   }
+
   Future<void> loadPurchasesPage(int month, int year, int page) async {
     if (isLoadingMore.value) return;
 
@@ -274,14 +279,12 @@ class MonthlyReportController extends GetxController {
       return;
     }
 
-    // 🔥 تم التعديل لتصبح القراءة من حقل الإجمالي التلقائي المباشر
     final totalCost = double.tryParse(totalCostCtrl.text) ?? 0;
     if (totalCost <= 0) {
       AppSnackbar.warning("القيمة الإجمالية يجب أن تكون أكبر من صفر (تأكد من إدخال السعر)");
       return;
     }
 
-    // سعر الوحدة الواحدة جاهز ومقروء من حقل السعر الذي أدخله المستخدم
     final pricePerUnit = double.tryParse(costPerUnitCtrl.text) ?? 0;
 
     try {
@@ -289,7 +292,7 @@ class MonthlyReportController extends GetxController {
         productName: productNameCtrl.text.trim(),
         quantity: quantity,
         unit: selectedUnit.value,
-        costPerUnit: pricePerUnit, // نمرر سعر الوحدة الصافي للداتابيز بآمان
+        costPerUnit: pricePerUnit,
         month: selectedMonth.value,
         year: selectedYear.value,
       );
@@ -320,6 +323,162 @@ class MonthlyReportController extends GetxController {
     } finally {
       isLoading(false);
     }
+  }
+
+  // 📄📥 دالة إنشاء وحفظ ملف הـ PDF مباشرة على الجهاز
+  Future<void> downloadPdfReport() async {
+    try {
+      isLoading(true);
+
+      // جلب خط يدعم العربية من خطوط جوجل
+      final font = await PdfGoogleFonts.cairoRegular();
+      final pdf = pw.Document();
+
+      final monthName = _getMonthName(selectedMonth.value);
+      final year = selectedYear.value;
+
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          textDirection: pw.TextDirection.rtl,
+          theme: pw.ThemeData.withFont(base: font, bold: font),
+          build: (pw.Context context) {
+            return [
+              // الهيدر
+              pw.Container(
+                alignment: pw.Alignment.center,
+                padding: const pw.EdgeInsets.all(12),
+                decoration: pw.BoxDecoration(
+                  color: PdfColors.teal700,
+                  borderRadius: pw.BorderRadius.circular(8),
+                ),
+                child: pw.Text(
+                  'تقرير شهر $monthName $year',
+                  style: pw.TextStyle(
+                    color: PdfColors.white,
+                    fontSize: 20,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              ),
+              pw.SizedBox(height: 16),
+
+              // جدول الأصناف المفلترة
+              pw.Table.fromTextArray(
+                border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.8),
+                headerStyle: pw.TextStyle(
+                  color: PdfColors.white,
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 10,
+                ),
+                headerDecoration: const pw.BoxDecoration(color: PdfColors.teal900),
+                rowDecoration: const pw.BoxDecoration(color: PdfColors.grey50),
+                cellPadding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                cellStyle: const pw.TextStyle(fontSize: 9),
+                headers: [
+                  'الصنف',
+                  'المبيعات (كمية)',
+                  'إيراد البيع',
+                  'المشتريات/المصروف',
+                  'التكلفة المدفوعة',
+                  'الربح/الخسارة',
+                ],
+                data: filteredTableData.map((row) {
+                  final profit = (row['sales_amount'] as num) - (row['purchase_cost'] as num);
+                  return [
+                    row['product_name'] ?? '',
+                    '${row['sold_quantity']} ${row['unit'] ?? ''}',
+                    '${(row['sales_amount'] as num).toStringAsFixed(2)} ج.م',
+                    '${row['purchased_quantity']} ${row['unit'] ?? ''}',
+                    '${(row['purchase_cost'] as num).toStringAsFixed(2)} ج.م',
+                    '${profit.toStringAsFixed(2)} ج.م',
+                  ];
+                }).toList(),
+              ),
+
+              pw.SizedBox(height: 20),
+              pw.Divider(),
+
+              // كارت صافي الأرباح والمصروفات
+              pw.Container(
+                padding: const pw.EdgeInsets.all(12),
+                decoration: pw.BoxDecoration(
+                  color: netProfit.value >= 0 ? PdfColors.green50 : PdfColors.red50,
+                  borderRadius: pw.BorderRadius.circular(8),
+                  border: pw.Border.all(
+                    color: netProfit.value >= 0 ? PdfColors.green700 : PdfColors.red700,
+                  ),
+                ),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text(
+                          netProfit.value >= 0 ? 'صافي الربح الحقيقي:' : 'صافي الخسارة الحقيقية:',
+                          style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+                        ),
+                        pw.Text(
+                          '${netProfit.value.abs().toStringAsFixed(2)} ج.م',
+                          style: pw.TextStyle(
+                            fontSize: 16,
+                            fontWeight: pw.FontWeight.bold,
+                            color: netProfit.value >= 0 ? PdfColors.green800 : PdfColors.red800,
+                          ),
+                        ),
+                      ],
+                    ),
+                    pw.SizedBox(height: 8),
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text('إجمالي المبيعات: ${totalSales.value.toStringAsFixed(2)} ج.م'),
+                        pw.Text('إجمالي المشتريات: ${totalPurchaseCost.value.toStringAsFixed(2)} ج.م'),
+                      ],
+                    ),
+                    pw.SizedBox(height: 4),
+                    pw.Text('إجمالي المصروفات الأخرى: ${totalExpenses.value.toStringAsFixed(2)} ج.م'),
+                  ],
+                ),
+              ),
+            ];
+          },
+        ),
+      );
+
+      final bytes = await pdf.save();
+
+      // تحديد مسار التنزيل المباشر
+      Directory output = await getApplicationDocumentsDirectory();
+      if (Platform.isAndroid) {
+        output = Directory('/storage/emulated/0/Download');
+        if (!await output.exists()) {
+          output = await getApplicationDocumentsDirectory();
+        }
+      }
+
+      final fileName = "تقرير_شهر_${monthName}_$year.pdf";
+      final filePath = "${output.path}/$fileName";
+      final file = File(filePath);
+      await file.writeAsBytes(bytes);
+
+      AppSnackbar.success("تم حفظ ملف PDF في مجلد التنزيلات بنجاح");
+
+      // فتح الملف تلقائياً للمستخدم
+    } catch (e) {
+      AppSnackbar.error("حدث خطأ أثناء حفظ ملف الـ PDF: $e");
+    } finally {
+      isLoading(false);
+    }
+  }
+
+  String _getMonthName(int month) {
+    const months = [
+      "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو",
+      "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"
+    ];
+    return months[month - 1];
   }
 
   void clearForm() {

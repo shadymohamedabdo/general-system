@@ -27,6 +27,11 @@ class MonthlyReportScreen extends GetView<MonthlyReportController> {
         centerTitle: true,
         actions: [
           IconButton(
+            icon: const Icon(Icons.picture_as_pdf_rounded),
+            tooltip: 'تنزيل PDF',
+            onPressed: () => controller.downloadPdfReport(),
+          ),
+          IconButton(
             icon: const Icon(Icons.add_shopping_cart),
             onPressed: () => controller.showAddPurchaseForm.value = !controller.showAddPurchaseForm.value,
           ),
