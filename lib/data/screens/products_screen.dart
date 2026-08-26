@@ -112,10 +112,12 @@ class ProductsScreen extends GetView<ProductsController> {
   }
 
   Widget _buildPremiumProductCard(Product p) {
-    double remaining = controller.productStock[p.id] ?? 0.0;
-    bool isOutofStock = remaining <= 0;
-    bool isLowStock = (p.category == 'بن' && remaining > 0 && remaining <= 2.0) ||
-        (p.category != 'بن' && p.category != 'مشروب' && remaining > 0 && remaining <= 5.0);
+    double remaining = controller.productStock[p.id] ?? -1.0;
+
+    // 🌟 هل المنتج رصيده مفتوح؟ (إذا كانت القيمة -1.0)
+    bool isOpenStock = (remaining == -1.0);
+    bool isOutofStock = !isOpenStock && remaining <= 0;
+    bool isLowStock = !isOpenStock && remaining > 0 && remaining <= (p.category == 'بن' ? 2.0 : 5.0);
 
     Color cardBgColor = Colors.white;
     if (isOutofStock) {
@@ -124,7 +126,7 @@ class ProductsScreen extends GetView<ProductsController> {
       cardBgColor = const Color(0xFFFFF3E0);
     }
 
-    String unitLabel = p.category == 'بن' ? 'كيلو' : 'قطعة';
+    String unitLabel = p.unit.isNotEmpty ? p.unit : (p.category == 'بن' ? 'كيلو' : 'قطعة');
     final style = _getCategoryStyle(p.category);
 
     return Container(
@@ -182,25 +184,29 @@ class ProductsScreen extends GetView<ProductsController> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
-                if (p.category != 'مشروب') ...[
+
+                // 🌟 عرض الرصيد حسب الحالة
+                if (isOpenStock) ...[
                   Text(
-                    isOutofStock
-                        ? 'المتاح: 0 $unitLabel ⚠️'
-                        : 'المتاح: ${remaining.toStringAsFixed(p.category == 'بن' ? 2 : 0)} $unitLabel',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: isOutofStock
-                          ? Colors.red[700]
-                          : (isLowStock ? Colors.orange[800] : Colors.blueGrey[700]),
-                    ),
+                    'رصيد مفتوح ✨',
+                    style: TextStyle(fontSize: 12, color: Colors.green[700], fontWeight: FontWeight.bold),
+                  ),
+                ] else if (isOutofStock) ...[
+                  Text(
+                    'المتاح: 0 $unitLabel ⚠️',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red[700]),
                   ),
                 ] else ...[
                   Text(
-                    'رصيد مفتوح (كوب) ✨',
-                    style: TextStyle(fontSize: 12, color: Colors.green[700], fontWeight: FontWeight.w500),
+                    'المتاح: ${remaining.toStringAsFixed(p.category == 'بن' ? 2 : 0)} $unitLabel',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: isLowStock ? Colors.orange[800] : Colors.blueGrey[700],
+                    ),
                   ),
                 ],
+
                 const Spacer(),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -230,7 +236,6 @@ class ProductsScreen extends GetView<ProductsController> {
       ),
     );
   }
-
   Widget _buildActionBtn(IconData icon, Color color, VoidCallback onTap, bool enabled) {
     return Material(
       color: Colors.transparent,

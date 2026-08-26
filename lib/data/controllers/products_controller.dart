@@ -94,10 +94,12 @@ class ProductsController extends GetxController {
   }
 
   // 📊 حساب الرصيد الذكي
+// 📊 حساب الرصيد الذكي لجميع الفئات
   Future<void> loadProductBalances() async {
     try {
       final db = await dbHelper.database;
 
+      // 1. جلب إجمالي المشتريات لكل منتج
       final purchasesResult = await db.rawQuery('''
       SELECT product_name, SUM(quantity) as total_purchased 
       FROM purchases 
@@ -111,6 +113,7 @@ class ProductsController extends GetxController {
         if (name != null) purchasedQuantity[name] = qty;
       }
 
+      // 2. جلب إجمالي المبيعات لكل منتج
       final salesResult = await db.rawQuery('''
       SELECT product_id, SUM(quantity) as total_sold 
       FROM sales 
@@ -130,17 +133,16 @@ class ProductsController extends GetxController {
         if (product.id == null) continue;
 
         String pNameNormalized = product.name.trim().toLowerCase();
+        double purchased = purchasedQuantity[pNameNormalized] ?? 0.0;
+        double manualStock = product.initialStock ?? 0.0;
+        double totalIncoming = purchased + manualStock;
 
-        if (product.category == 'مشروب' || product.category == 'أكل سريع') {
-          newStock[product.id!] = 999.0;
+        // 💡 إذا لم يدخل المستخدم كمية أولية ولم يشترِ بضاعة لهذا المنتج -> رصيد مفتوح (9999)
+        if (totalIncoming <= 0) {
+          newStock[product.id!] = -1.0; // سنعبر عن الرصيد المفتوح بالرمز -1.0
         } else {
-          double purchased = purchasedQuantity[pNameNormalized] ?? 0.0;
-          double manualStock = product.initialStock ?? 0.0;
-
-          double totalIncoming = purchased + manualStock;
           double sold = salesQuantity[product.id!] ?? 0.0;
           double remaining = totalIncoming - sold;
-
           newStock[product.id!] = remaining > 0 ? remaining : 0.0;
         }
       }
@@ -151,7 +153,6 @@ class ProductsController extends GetxController {
       AppSnackbar.error("خطأ في حساب الأرصدة: $e");
     }
   }
-
   Future<void> loadAvailableProductNames() async {
     try {
       final purchases = await _purchasesRepo.getAllPurchases();
