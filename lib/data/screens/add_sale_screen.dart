@@ -291,17 +291,20 @@ class AddSaleScreen extends GetView<SalesController> {
     final hasValidValue = controller.availableProducts.any((p) => p.id == currentValue);
 
     return DropdownButtonFormField<int>(
-      initialValue: hasValidValue ? currentValue : null,
+      value: hasValidValue ? currentValue : null,
       decoration: InputDecoration(
         labelText: 'المنتج المتاح',
         prefixIcon: const Icon(Icons.inventory_2_outlined, color: Colors.brown),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
       ),
       items: controller.availableProducts.map((p) {
-        double remaining = controller.productRemainingMap[p.id] ?? 0;
-        String stockText = p.category.trim() == 'مشروب'
+        double? remaining = controller.productRemainingMap[p.id];
+
+        String stockText = (remaining == null)
             ? 'رصيد مفتوح'
-            : '${remaining.toStringAsFixed(2)} متاح';
+            : (remaining <= 0 ? 'نفد من المخزن' : '${remaining.toStringAsFixed(0)} متاح');
+
+        Color textColor = (remaining != null && remaining <= 0) ? Colors.red : Colors.blueGrey;
 
         return DropdownMenuItem<int>(
           value: p.id,
@@ -309,7 +312,7 @@ class AddSaleScreen extends GetView<SalesController> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(p.name),
-              Text(stockText, style: const TextStyle(fontSize: 12, color: Colors.blueGrey)),
+              Text(stockText, style: TextStyle(fontSize: 12, color: textColor, fontWeight: FontWeight.bold)),
             ],
           ),
         );
@@ -317,7 +320,6 @@ class AddSaleScreen extends GetView<SalesController> {
       onChanged: (v) => controller.updateProduct(v),
     );
   }
-
   Widget _buildQuantitySection() {
     final isCoffee = controller.selectedCategory.value == 'بن';
     if (isCoffee) {

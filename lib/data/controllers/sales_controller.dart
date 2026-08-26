@@ -42,10 +42,11 @@ class SalesController extends GetxController {
   var unitLabel = "وحدة".obs;
   var computedWeight = 0.0.obs;
 
-  // 🔹 الرصيد لكل منتج
-  var productRemainingMap = <int, double>{}.obs;
-
+  // 🔹 الرصيد لكل منتج (null تعني رصيد مفتوح)
+  var productRemainingMap = <int, double?>{}.obs;
   final formKey = GlobalKey<FormState>();
+
+  var categories = <String>[].obs;
 
   @override
   void onInit() {
@@ -64,10 +65,6 @@ class SalesController extends GetxController {
   }
 
   // ================= تحميل المنتجات =================
-// 🔹 داخل SalesController
-  var categories = <String>[].obs;
-
-
   Future<void> loadProducts() async {
     isLoading(true);
     try {
@@ -98,22 +95,22 @@ class SalesController extends GetxController {
     }
   }
 
-// ================= حساب الأرصدة المتاحة الحقيقية =================
+  // ================= حساب الأرصدة المتاحة الحقيقية =================
   Future<void> _loadRemainingBalances() async {
     try {
       final db = await dbHelper.database;
 
       final purchasesResult = await db.rawQuery('''
-      SELECT product_name, SUM(quantity) as total_purchased 
-      FROM purchases 
-      GROUP BY product_name
-    ''');
+        SELECT product_name, SUM(quantity) as total_purchased 
+        FROM purchases 
+        GROUP BY product_name
+      ''');
 
       final salesResult = await db.rawQuery('''
-      SELECT product_id, SUM(quantity) as total_sold 
-      FROM sales 
-      GROUP BY product_id
-    ''');
+        SELECT product_id, SUM(quantity) as total_sold 
+        FROM sales 
+        GROUP BY product_id
+      ''');
 
       Map<String, double> purchasedQuantityMap = {};
       for (var row in purchasesResult) {
@@ -131,39 +128,30 @@ class SalesController extends GetxController {
 
       for (var product in products) {
         final cleanProductName = product.name.trim().toLowerCase();
+        bool hasPurchases = purchasedQuantityMap.containsKey(cleanProductName);
         double totalPurchased = purchasedQuantityMap[cleanProductName] ?? 0.0;
         double totalSold = soldQuantityMap[product.id] ?? 0.0;
 
-        double totalStockIn = product.initialStock + totalPurchased;
-
-        // 🔑 شرط ديناميكي تلقائي:
-        // إذا لم يُحدد للمنتج رصيد أولي ولم تُشترَ له أي كمية مخزنية، يُعتبر رصيداً مفتوحاً تلقائياً
-        if (product.initialStock == 0 && totalPurchased == 0) {
-          productRemainingMap[product.id!] = 9999.0;
+        // 🔑 إن لم يتم تحديد رصيد أولي ولم يدخل الصنف في المشتريات، يُعامل كـ "رصيد مفتوح"
+        if (product.initialStock == 0 && !hasPurchases) {
+          productRemainingMap[product.id!] = null; // null تعني رصيد مفتوح
         } else {
+          double totalStockIn = product.initialStock + totalPurchased;
           double remaining = totalStockIn - totalSold;
-          productRemainingMap[product.id!] = remaining > 0 ? remaining : 0.0;
+          productRemainingMap[product.id!] = remaining;
         }
       }
     } catch (e) {
       AppSnackbar.error("خطأ في حساب الأرصدة: $e");
     }
   }
+
   // ================= فلترة المنتجات للمبيعات =================
   void _filterAvailableProducts() {
     availableProducts.assignAll(
       products.where((p) {
         final pCategory = p.category.trim().toLowerCase();
         final selCategory = selectedCategory.value?.trim().toLowerCase();
-
-        // 🔑 فحص الرصيد: استثناء المنتجات التي لا تتطلب تتبع مخزن (مثل المشروبات والعصائر والوافل)
-        final isUnlimitedCategory = pCategory.contains('مشروب') ||
-            pCategory.contains('عصير') ||
-            pCategory.contains('عصائر') ||
-            pCategory.contains('وافل');
-
-        final remainingStock = productRemainingMap[p.id] ?? 0;
-        final hasStock = isUnlimitedCategory || remainingStock > 0;
 
         // مطابقة الفئة بشكل مرن
         bool matchesCategory = false;
@@ -183,19 +171,18 @@ class SalesController extends GetxController {
         final matchesSearch = searchQuery.value.isEmpty ||
             p.name.toLowerCase().contains(searchQuery.value.toLowerCase());
 
-        return hasStock && matchesCategory && matchesSearch;
+        return matchesCategory && matchesSearch;
       }).toList(),
     );
   }
-  // ================= فلترة المنتجات للمبيعات =================
-// 🔹 متغير رقم الترابيزة (يكون null إذا كانت الفاتورة تيك أواي)
-  var currentTableNumber = RxnInt();
 
-// 🔹 دالة الحفظ الذكية (تيك أواي أو ترابيزات)
+  // ================= إدارات الترابيزات والتيك أواي =================
+  var currentTableNumber = RxnInt();
+  var currentTableOrders = <Map<String, dynamic>>[].obs;
+
   Future<bool> saveCartOrAddToTable(int userId) async {
     if (cartItems.isEmpty) return false;
 
-    // 🔴 1. حالة إضافة طلبات لترابيزة مفتوحة
     if (currentTableNumber.value != null) {
       try {
         for (var item in cartItems) {
@@ -217,12 +204,8 @@ class SalesController extends GetxController {
       }
     }
 
-    // 🟢 2. حالة الفاتورة الفورية (تيك أواي / سفري)
     return await saveCart(userId);
   }
-
-  // في SalesController
-  var currentTableOrders = <Map<String, dynamic>>[].obs;
 
   void selectTable(int? tableNum) async {
     currentTableNumber.value = tableNum;
@@ -237,7 +220,7 @@ class SalesController extends GetxController {
     final orders = await dbHelper.getTableOrders(tableNum);
     currentTableOrders.assignAll(orders);
   }
-  // في SalesController
+
   Future<bool> checkoutAndGetTableOrders(int tableNum, int userId) async {
     final orders = await dbHelper.getTableOrders(tableNum);
     if (orders.isEmpty && cartItems.isEmpty) return false;
@@ -248,7 +231,6 @@ class SalesController extends GetxController {
       return false;
     }
 
-    // 1. نقل الطلبيات القديمة للترابيزة إلى جدول sales الرئيسي عبر SalesRepository
     for (var order in orders) {
       await salesRepo.addSale(
         shiftId: shiftId,
@@ -260,19 +242,17 @@ class SalesController extends GetxController {
       );
     }
 
-    // 2. تنظيف جلسة الترابيزة
     await dbHelper.clearTableSession(tableNum);
     currentTableOrders.clear();
     currentTableNumber.value = null;
     cartItems.clear();
 
-    // 3. تحديث قائمة المنتجات وإشعار النظام بتحديث المبيعات
     await loadProducts();
     DatabaseHelper.notifySalesChanged();
 
     return true;
   }
-  // دالة تقفيل الحساب وإغلاق الترابيزة
+
   Future<void> checkoutTable(int tableNum) async {
     await dbHelper.clearTableSession(tableNum);
     currentTableOrders.clear();
@@ -280,7 +260,7 @@ class SalesController extends GetxController {
     AppSnackbar.success("تم تقفيل حساب الترابيزة $tableNum بنجاح");
   }
 
-  // ================= تغيير الكاتيجوري =================
+  // ================= تغيير الكاتيجوري والمنتج =================
   void onCategoryChanged(String? val) {
     selectedCategory.value = val;
     selectedProductId.value = null;
@@ -300,7 +280,7 @@ class SalesController extends GetxController {
     _filterAvailableProducts();
   }
 
-  // ================= اختيار المنتج =================
+  // 🔑 تم التعديل: السماح باختيار المنتج ذو الرصيد المفتوح دون إظهار خطأ
   Future<void> updateProduct(int? id) async {
     selectedProductId.value = id;
     amount.value = null;
@@ -310,15 +290,13 @@ class SalesController extends GetxController {
       final p = products.firstWhere((p) => p.id == id);
       unitPrice.value = p.price;
 
-      double remaining = productRemainingMap[id] ?? 0;
-      if (remaining <= 0) {
-        AppSnackbar.warning("هذا المنتج نفذ من المخزن");
-        selectedProductId.value = null;
+      double? remaining = productRemainingMap[id];
+      if (remaining != null && remaining <= 0) {
+        AppSnackbar.warning("تنبيه: هذا المنتج نفد من المخزن (الرصيد الحالي: ${remaining.toStringAsFixed(0)})");
       }
     }
   }
 
-  // ================= حساب الوزن عند إدخال المبلغ =================
   void updateAmountAndWeight(String value) {
     final amountValue = double.tryParse(value);
     if (amountValue != null && amountValue > 0 && unitPrice.value > 0) {
@@ -335,6 +313,7 @@ class SalesController extends GetxController {
   double get orderTotal => cartItems.fold(0.0, (sum, item) => sum + item.total);
 
   // ================= السلة (Cart) =================
+  // 🔑 تم التعديل: التحقق فقط للأصناف التي لها مخزون محدد (remaining != null)
   void addToCart() {
     if (selectedProductId.value == null) {
       AppSnackbar.warning("برجاء اختيار المنتج أولاً");
@@ -342,11 +321,11 @@ class SalesController extends GetxController {
     }
 
     final product = products.firstWhere((p) => p.id == selectedProductId.value);
-    double remaining = productRemainingMap[product.id] ?? 0;
+    double? remaining = productRemainingMap[product.id];
     double finalQuantity = (amount.value != null) ? (amount.value! / unitPrice.value) : quantity.value;
 
-    if (finalQuantity > remaining && product.category.trim() != 'مشروب') {
-      AppSnackbar.warning("الكمية المطلوبة أكبر من المتاح بالمخزن");
+    if (remaining != null && finalQuantity > remaining) {
+      AppSnackbar.warning("الكمية المطلوبة أكبر من المتاح بالمخزن (المتاح: ${remaining.toStringAsFixed(2)})");
       return;
     }
 
@@ -368,6 +347,7 @@ class SalesController extends GetxController {
   }
 
   // ================= حفظ المنتج الفردي =================
+  // 🔑 تم التعديل: دعم الرصيد المفتوح والمحدد بدون خطأ
   Future<bool> saveSingleProduct(int userId) async {
     if (!formKey.currentState!.validate()) return false;
     if (selectedProductId.value == null) {
@@ -375,12 +355,11 @@ class SalesController extends GetxController {
       return false;
     }
 
-    double remaining = productRemainingMap[selectedProductId.value] ?? 0;
+    double? remaining = productRemainingMap[selectedProductId.value];
     double finalQuantity = (amount.value != null) ? (amount.value! / unitPrice.value) : quantity.value;
 
-    final product = products.firstWhere((p) => p.id == selectedProductId.value);
-    if (finalQuantity > remaining && product.category.trim() != 'مشروب') {
-      AppSnackbar.warning("الكمية أكبر من المتاح");
+    if (remaining != null && finalQuantity > remaining) {
+      AppSnackbar.warning("الكمية أكبر من المتاح بالمخزن");
       return false;
     }
 
