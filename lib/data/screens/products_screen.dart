@@ -3,14 +3,12 @@ import 'package:get/get.dart';
 import '../controllers/products_controller.dart';
 import '../models/product_model.dart';
 
-/// شاشة إدارة المنتجات والمخزن (مخزن بيت البن)
 class ProductsScreen extends GetView<ProductsController> {
   const ProductsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      // بناء التبويبات ديناميكياً من الداتابيز
       final tabsList = ['الكل', ...controller.categoriesList];
 
       return DefaultTabController(
@@ -114,7 +112,6 @@ class ProductsScreen extends GetView<ProductsController> {
   Widget _buildPremiumProductCard(Product p) {
     double remaining = controller.productStock[p.id] ?? -1.0;
 
-    // 🌟 هل المنتج رصيده مفتوح؟ (إذا كانت القيمة -1.0)
     bool isOpenStock = (remaining == -1.0);
     bool isOutofStock = !isOpenStock && remaining <= 0;
     bool isLowStock = !isOpenStock && remaining > 0 && remaining <= (p.category == 'بن' ? 2.0 : 5.0);
@@ -126,7 +123,16 @@ class ProductsScreen extends GetView<ProductsController> {
       cardBgColor = const Color(0xFFFFF3E0);
     }
 
-    String unitLabel = p.unit.isNotEmpty ? p.unit : (p.category == 'بن' ? 'كيلو' : 'قطعة');
+    // 🎯 تحديد اسم الوحدة المعروضة في الكارت
+    String unitLabel;
+    if (p.category == 'بن') {
+      unitLabel = 'كيلو';
+    } else if (p.category == 'مشروب' || p.category.contains('مشروب')) {
+      unitLabel = 'كوب';
+    } else {
+      unitLabel = 'قطعة';
+    }
+
     final style = _getCategoryStyle(p.category);
 
     return Container(
@@ -184,8 +190,6 @@ class ProductsScreen extends GetView<ProductsController> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
-
-                // 🌟 عرض الرصيد حسب الحالة
                 if (isOpenStock) ...[
                   Text(
                     'رصيد مفتوح ✨',
@@ -206,7 +210,6 @@ class ProductsScreen extends GetView<ProductsController> {
                     ),
                   ),
                 ],
-
                 const Spacer(),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -236,6 +239,7 @@ class ProductsScreen extends GetView<ProductsController> {
       ),
     );
   }
+
   Widget _buildActionBtn(IconData icon, Color color, VoidCallback onTap, bool enabled) {
     return Material(
       color: Colors.transparent,
@@ -376,7 +380,6 @@ class ProductsScreen extends GetView<ProductsController> {
     );
   }
 
-  // 🌟 أزرار اختيار التصنيف ديناميكياً من قائمة categoriesList
   Widget _buildCustomSelector() {
     return Obx(() {
       if (controller.categoriesList.isEmpty) {
@@ -436,7 +439,7 @@ class ProductsScreen extends GetView<ProductsController> {
 
   Map<String, dynamic> _getCategoryStyle(String cat) {
     if (cat == 'بن') return {'icon': Icons.grain, 'color': Colors.brown};
-    if (cat == 'مشروب') return {'icon': Icons.local_cafe, 'color': Colors.blue};
+    if (cat == 'مشروب' || cat.contains('مشروب')) return {'icon': Icons.local_cafe, 'color': Colors.blue};
     return {'icon': Icons.fastfood, 'color': Colors.orange};
   }
 
