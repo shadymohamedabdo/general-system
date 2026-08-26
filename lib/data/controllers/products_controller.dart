@@ -7,7 +7,6 @@ import '../repositories/purchases_repository.dart';
 import '../repositories/reports_repository.dart';
 
 class ProductsController extends GetxController {
-
   // 🗄️ instance من الداتابيز
   final dbHelper = DatabaseHelper.instance;
 
@@ -21,12 +20,16 @@ class ProductsController extends GetxController {
   final nameCtrl = TextEditingController();
   final priceCtrl = TextEditingController();
   final searchCtrl = TextEditingController();
-  final TextEditingController stockCtrl = TextEditingController(text: '0'); // حقل كمية المصنع الجديد
+  final TextEditingController stockCtrl = TextEditingController(text: '0');
 
   // 📌 الحالة الحالية للفلاتر
   var selectedCategory = 'بن'.obs;         // نوع المنتج
   var selectedTabCategory = 'الكل'.obs;    // التبويب الحالي
   var selectedUnit = 'كيلو'.obs;           // وحدة القياس
+
+  // 📋 قوائم الفئات والوحدات الديناميكية القادمة من الداتابيز
+  var categoriesList = <String>[].obs;
+  var unitsList = <String>[].obs;
 
   // 📋 كل المنتجات + المنتجات بعد الفلترة
   var allProducts = <Product>[].obs;
@@ -42,7 +45,32 @@ class ProductsController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    loadProducts(); // 🚀 تحميل البيانات أول ما الكنترولر يشتغل
+    loadCategoriesAndUnits(); // 🚀 تحميل الفئات والوحدات أولاً
+    loadProducts();           // 🚀 تحميل المنتجات
+  }
+
+  // 🔄 تحميل الفئات والوحدات الديناميكية مباشرة من الداتابيز
+  Future<void> loadCategoriesAndUnits() async {
+    try {
+      final db = await dbHelper.database;
+
+      // جلب الفئات
+      final catData = await db.query('categories', orderBy: 'id ASC');
+      final cats = catData.map((e) => e['name'] as String).toList();
+      categoriesList.assignAll(cats);
+
+      // جلب الوحدات
+      final unitData = await db.query('units', orderBy: 'id ASC');
+      final uList = unitData.map((e) => e['name'] as String).toList();
+      unitsList.assignAll(uList);
+
+      // ضبط الفئة المختارة افتراضياً إذا اختفت الفئة الحالية بعد الحذف
+      if (categoriesList.isNotEmpty && !categoriesList.contains(selectedCategory.value)) {
+        selectedCategory.value = categoriesList.first;
+      }
+    } catch (e) {
+      // التعامل مع الخطأ الصامت
+    }
   }
 
   // 🔄 تحميل كل المنتجات من الداتابيز
@@ -55,7 +83,7 @@ class ProductsController extends GetxController {
     // 🔄 تحويل البيانات لـ model
     allProducts.assignAll(maps.map((e) => Product.fromMap(e)).toList());
 
-    // 🧠 تحميل الأسماء المتاحة (لازم قبل الأرصدة)
+    // 🧠 تحميل الأسماء المتاحة
     await loadAvailableProductNames();
 
     // 📊 حساب الرصيد لكل منتج
@@ -65,13 +93,11 @@ class ProductsController extends GetxController {
     applyFilters(searchCtrl.text);
   }
 
-  // 📊 حساب الرصيد الذكي: يمنع الجمع التلقائي ويلتزم باقتراحك بالملي
-// 📊 حساب الرصيد الذكي: يدمج المشتريات الخارجية مع بضاعة المصنع المباشرة بدقة
+  // 📊 حساب الرصيد الذكي
   Future<void> loadProductBalances() async {
     try {
       final db = await dbHelper.database;
 
-      // 1️⃣ جلب إجمالي المشتريات تجميعياً لكل منتج (تاريخي بالكامل)
       final purchasesResult = await db.rawQuery('''
       SELECT product_name, SUM(quantity) as total_purchased 
       FROM purchases 
@@ -85,7 +111,6 @@ class ProductsController extends GetxController {
         if (name != null) purchasedQuantity[name] = qty;
       }
 
-      // 2️⃣ جلب إجمالي المبيعات تجميعياً برقم المنتج (product_id) من جدول المبيعات
       final salesResult = await db.rawQuery('''
       SELECT product_id, SUM(quantity) as total_sold 
       FROM sales 
@@ -107,31 +132,26 @@ class ProductsController extends GetxController {
         String pNameNormalized = product.name.trim().toLowerCase();
 
         if (product.category == 'مشروب' || product.category == 'أكل سريع') {
-          newStock[product.id!] = 999.0; // أرصدة مفتوحة للمشروبات والأكل
+          newStock[product.id!] = 999.0;
         } else {
           double purchased = purchasedQuantity[pNameNormalized] ?? 0.0;
           double manualStock = product.initialStock ?? 0.0;
 
-          // إجمالي الداخل = المشتريات التاريخية + الرصيد الابتدائي
           double totalIncoming = purchased + manualStock;
-
-          // إجمالي الخارج = مبيعات المنتج التاريخية بالكامل
           double sold = salesQuantity[product.id!] ?? 0.0;
-
           double remaining = totalIncoming - sold;
 
-          // حفظ الرصيد الفعلي المتبقي مع منع الأرقام السالبة
           newStock[product.id!] = remaining > 0 ? remaining : 0.0;
         }
       }
 
       productStock.value = newStock;
       productStock.refresh();
-
     } catch (e) {
       AppSnackbar.error("خطأ في حساب الأرصدة: $e");
     }
   }
+
   Future<void> loadAvailableProductNames() async {
     try {
       final purchases = await _purchasesRepo.getAllPurchases();
@@ -149,10 +169,16 @@ class ProductsController extends GetxController {
     }
   }
 
-  // 🔄 تغيير التصنيف + تغيير الوحدة تلقائي
+  // 🔄 تغيير التصنيف + تغيير الوحدة تلقائي بشكل ديناميكي
   void changeCategory(String category) {
     selectedCategory.value = category;
-    selectedUnit.value = (category == 'بن') ? 'كيلو' : (category == 'مشروب') ? 'كوب' : 'قطعة';
+    if (category == 'بن') {
+      selectedUnit.value = 'كيلو';
+    } else if (category == 'مشروب') {
+      selectedUnit.value = 'كوب';
+    } else {
+      selectedUnit.value = unitsList.isNotEmpty ? unitsList.first : 'قطعة';
+    }
   }
 
   // 📂 تغيير التبويب
@@ -177,9 +203,8 @@ class ProductsController extends GetxController {
     filteredProducts.assignAll(results);
   }
 
-  // ➕ إضافة أو تحديث منتج جديد بدون فرض قيم الـ 50 الإجبارية
+  // ➕ إضافة أو تحديث منتج جديد
   Future<void> addProduct() async {
-
     if (nameCtrl.text.trim().isEmpty || priceCtrl.text.trim().isEmpty) {
       AppSnackbar.warning("برجاء ملء اسم المنتج وسعر البيع");
       return;
@@ -189,10 +214,7 @@ class ProductsController extends GetxController {
     double price = double.tryParse(priceCtrl.text.trim()) ?? 0.0;
     double inputStock = double.tryParse(stockCtrl.text.trim()) ?? 0.0;
     String category = selectedCategory.value;
-    String safeUnit = (category == 'بن') ? 'كيلو' : (category == 'مشروب') ? 'كوب' : 'قطعة';
-
-    // ⚡ إلغاء فرض القيمة 50: لو المستخدم سابها صفر أو فاضية، تفضل صفر والسيستم يعتمد على فواتير المشتريات
-    // تم حذف شرط فرض الـ 50 القديم هنا تماماً
+    String safeUnit = selectedUnit.value;
 
     try {
       final db = await dbHelper.database;
@@ -202,7 +224,7 @@ class ProductsController extends GetxController {
         whereArgs: [name.toLowerCase(), category],
       );
 
-      const String stockColumn = 'initial_stock'; // الحفاظ على اسم العمود الفعلي
+      const String stockColumn = 'initial_stock';
 
       if (existingProducts.isNotEmpty) {
         var firstProduct = existingProducts.first;
@@ -231,7 +253,6 @@ class ProductsController extends GetxController {
 
         AppSnackbar.success("تم تحديث كمية المنتج الحالي بنجاح 🎉");
       } else {
-
         await db.insert('products', {
           'name': name,
           'price': price,
@@ -243,7 +264,7 @@ class ProductsController extends GetxController {
         AppSnackbar.success("تم إضافة الصنف الجديد للمخزن ✨");
       }
 
-      // 🧹 تنظيف الحقول وإعادة التصفير
+      // 🧹 تنظيف الحقول
       nameCtrl.clear();
       priceCtrl.clear();
       stockCtrl.text = '0';
@@ -328,7 +349,7 @@ class ProductsController extends GetxController {
   // 🧹 إعادة تعيين الفورم
   void clearForm() {
     priceCtrl.clear();
-    stockCtrl.text = '0'; // تصفير حقل الكمية عند المسح للسلامة
+    stockCtrl.text = '0';
     if (availableProductNames.isNotEmpty) {
       selectedProductName.value = availableProductNames.first;
       nameCtrl.text = selectedProductName.value;
@@ -336,7 +357,9 @@ class ProductsController extends GetxController {
       selectedProductName.value = '';
       nameCtrl.clear();
     }
-    selectedCategory.value = 'بن';
+    if (categoriesList.isNotEmpty) {
+      selectedCategory.value = categoriesList.first;
+    }
   }
 
   @override
