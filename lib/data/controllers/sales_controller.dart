@@ -87,31 +87,33 @@ class SalesController extends GetxController {
 
       categories.assignAll(uniqueCategories);
 
+      // 🔑 تحديث حساب الأرصدة وتطبيق الفلترة
+      await _loadRemainingBalances();
+      _filterAvailableProducts();
+
     } catch (e) {
       AppSnackbar.error("خطأ في تحميل المنتجات: $e");
     } finally {
       isLoading(false);
     }
-  }  // ================= حساب الأرصدة المتاحة للمنتجات =================
-// ================= حساب الأرصدة المتاحة للمنتجات =================
+  }
+
 // ================= حساب الأرصدة المتاحة الحقيقية =================
   Future<void> _loadRemainingBalances() async {
     try {
       final db = await dbHelper.database;
 
-      // 1️⃣ إجمالي كل المشتريات والتوريدات التاريخية لكل منتج
       final purchasesResult = await db.rawQuery('''
-        SELECT product_name, SUM(quantity) as total_purchased 
-        FROM purchases 
-        GROUP BY product_name
-      ''');
+      SELECT product_name, SUM(quantity) as total_purchased 
+      FROM purchases 
+      GROUP BY product_name
+    ''');
 
-      // 2️⃣ إجمالي كل المبيعات التاريخية لكل منتج
       final salesResult = await db.rawQuery('''
-        SELECT product_id, SUM(quantity) as total_sold 
-        FROM sales 
-        GROUP BY product_id
-      ''');
+      SELECT product_id, SUM(quantity) as total_sold 
+      FROM sales 
+      GROUP BY product_id
+    ''');
 
       Map<String, double> purchasedQuantityMap = {};
       for (var row in purchasesResult) {
@@ -127,26 +129,21 @@ class SalesController extends GetxController {
         if (productId != null) soldQuantityMap[productId] = qty;
       }
 
-      // 3️⃣ حساب المعادلة التراكمية الصحيحة للمخزن
       for (var product in products) {
         final cleanProductName = product.name.trim().toLowerCase();
-
-        // إجمالي التوريدات الجديدة من جدول المشتريات
         double totalPurchased = purchasedQuantityMap[cleanProductName] ?? 0.0;
-
-        // إجمالي ما تم بيعه تاريخياً من هذا المنتج
         double totalSold = soldQuantityMap[product.id] ?? 0.0;
 
-        // 🔑 المعادلة الصحيحة: (رصيد الصنف المباشر عند إنشائه + كل المشتريات/التوريدات) - (كل المبيعات)
         double totalStockIn = product.initialStock + totalPurchased;
-        double remaining = totalStockIn - totalSold;
 
-        // استثناء أصناف المشروبات (رصيد مفتوح دائماً)
-        if (product.category.trim() == 'مشروب') {
-          remaining = 9999.0;
+        // 🔑 شرط ديناميكي تلقائي:
+        // إذا لم يُحدد للمنتج رصيد أولي ولم تُشترَ له أي كمية مخزنية، يُعتبر رصيداً مفتوحاً تلقائياً
+        if (product.initialStock == 0 && totalPurchased == 0) {
+          productRemainingMap[product.id!] = 9999.0;
+        } else {
+          double remaining = totalStockIn - totalSold;
+          productRemainingMap[product.id!] = remaining > 0 ? remaining : 0.0;
         }
-
-        productRemainingMap[product.id!] = remaining > 0 ? remaining : 0.0;
       }
     } catch (e) {
       AppSnackbar.error("خطأ في حساب الأرصدة: $e");
@@ -156,18 +153,28 @@ class SalesController extends GetxController {
   void _filterAvailableProducts() {
     availableProducts.assignAll(
       products.where((p) {
-        final hasStock = (productRemainingMap[p.id] ?? 0) > 0;
-
         final pCategory = p.category.trim().toLowerCase();
         final selCategory = selectedCategory.value?.trim().toLowerCase();
 
-        // مقارنة القسم بشكل مرن يتغاضى عن الإيموجي والكلمات الإضافية
+        // 🔑 فحص الرصيد: استثناء المنتجات التي لا تتطلب تتبع مخزن (مثل المشروبات والعصائر والوافل)
+        final isUnlimitedCategory = pCategory.contains('مشروب') ||
+            pCategory.contains('عصير') ||
+            pCategory.contains('عصائر') ||
+            pCategory.contains('وافل');
+
+        final remainingStock = productRemainingMap[p.id] ?? 0;
+        final hasStock = isUnlimitedCategory || remainingStock > 0;
+
+        // مطابقة الفئة بشكل مرن
         bool matchesCategory = false;
-        if (selCategory == null) {
+        if (selCategory == null || selCategory.isEmpty) {
           matchesCategory = true;
         } else if (selCategory.contains('بن') && pCategory.contains('بن')) {
           matchesCategory = true;
         } else if (selCategory.contains('مشروب') && pCategory.contains('مشروب')) {
+          matchesCategory = true;
+        } else if ((selCategory.contains('عصير') || selCategory.contains('عصائر')) &&
+            (pCategory.contains('عصير') || pCategory.contains('عصائر'))) {
           matchesCategory = true;
         } else {
           matchesCategory = pCategory == selCategory;
@@ -179,7 +186,8 @@ class SalesController extends GetxController {
         return hasStock && matchesCategory && matchesSearch;
       }).toList(),
     );
-  }  // ================= فلترة المنتجات للمبيعات =================
+  }
+  // ================= فلترة المنتجات للمبيعات =================
 
   // ================= تغيير الكاتيجوري =================
   void onCategoryChanged(String? val) {
