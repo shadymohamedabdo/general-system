@@ -96,24 +96,28 @@ class AddSaleScreen extends GetView<SalesController> {
     ],
   );
 
-  Widget _buildCategoryDropdown() => DropdownButtonFormField<String>(
-    initialValue: controller.selectedCategory.value,
-    decoration: InputDecoration(
-      labelText: 'نوع الصنف',
-      prefixIcon: const Icon(Icons.category_outlined, color: Colors.brown),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
-      filled: true,
-      fillColor: Colors.brown[50]?.withValues(alpha: 0.3),
-    ),
-    // 🔑 التعديل الأساسي: الـ value هنا تطابق تماماً الكلمة المتخزنة بالداتابيز
-    items: const [
-      DropdownMenuItem(value: 'بن', child: Text('☕ بن (وزن)')),
-      DropdownMenuItem(value: 'مشروب', child: Text('🍹 مشروب (كوب)')),
-      DropdownMenuItem(value: 'أكل سريع / أخرى', child: Text('🍔 بيت الاعشاب')),
-    ],
-    onChanged: controller.onCategoryChanged,
-  );
-
+  Widget _buildCategoryDropdown() {
+    return Obx(() {
+      return DropdownButtonFormField<String>(
+        value: controller.selectedCategory.value,
+        decoration: InputDecoration(
+          labelText: 'نوع الصنف / الفئة',
+          prefixIcon: const Icon(Icons.category_outlined, color: Colors.brown),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
+        ),
+        // 🔑 تحويل القائمة إلى ديناميكية بناءً على الفئات المتاحة فعلياً
+        items: controller.categories.map((category) {
+          return DropdownMenuItem<String>(
+            value: category,
+            child: Text(category),
+          );
+        }).toList(),
+        onChanged: (val) {
+          controller.onCategoryChanged(val);
+        },
+      );
+    });
+  }
   Widget _buildSearchBar() => TextFormField(
     decoration: InputDecoration(
       hintText: '🔍 ابحث عن منتج هنا...',

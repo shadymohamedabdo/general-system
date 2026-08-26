@@ -64,6 +64,10 @@ class SalesController extends GetxController {
   }
 
   // ================= تحميل المنتجات =================
+// 🔹 داخل SalesController
+  var categories = <String>[].obs;
+
+
   Future<void> loadProducts() async {
     isLoading(true);
     try {
@@ -74,16 +78,21 @@ class SalesController extends GetxController {
         result.map((e) => Product.fromMap(e)).toList(),
       );
 
-      await _loadRemainingBalances();
-      _filterAvailableProducts();
+      // 🔑 استخراج جميع الفئات المتاحة من المنتجات بدون تكرار
+      final uniqueCategories = products
+          .map((p) => p.category.trim())
+          .where((c) => c.isNotEmpty)
+          .toSet()
+          .toList();
+
+      categories.assignAll(uniqueCategories);
+
     } catch (e) {
       AppSnackbar.error("خطأ في تحميل المنتجات: $e");
     } finally {
       isLoading(false);
     }
-  }
-
-  // ================= حساب الأرصدة المتاحة للمنتجات =================
+  }  // ================= حساب الأرصدة المتاحة للمنتجات =================
 // ================= حساب الأرصدة المتاحة للمنتجات =================
 // ================= حساب الأرصدة المتاحة الحقيقية =================
   Future<void> _loadRemainingBalances() async {
