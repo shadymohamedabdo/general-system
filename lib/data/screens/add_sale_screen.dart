@@ -60,7 +60,7 @@ class AddSaleScreen extends GetView<SalesController> {
                       children: [
                         _buildHeader(),
                         const SizedBox(height: 16),
-                        _buildTableSelector(context), // 🍽️ تحديد الترابيزة
+                        _buildTableSelector(context),
                         const SizedBox(height: 16),
                         _buildCategoryDropdown(),
                         if (controller.selectedCategory.value != null) ...[
@@ -320,6 +320,7 @@ class AddSaleScreen extends GetView<SalesController> {
       onChanged: (v) => controller.updateProduct(v),
     );
   }
+
   Widget _buildQuantitySection() {
     final isCoffee = controller.selectedCategory.value == 'بن';
     if (isCoffee) {
@@ -411,7 +412,6 @@ class AddSaleScreen extends GetView<SalesController> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // الطلبات المحفوظة سابقاً
             if (tableNum != null && savedOrders.isNotEmpty) ...[
               Text('📌 الأصناف المسجلة على ترابيزة ($tableNum):', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.brown)),
               const SizedBox(height: 6),
@@ -424,8 +424,6 @@ class AddSaleScreen extends GetView<SalesController> {
               )),
               const Divider(),
             ],
-
-            // الأصناف الجديدة
             if (cartItems.isNotEmpty) ...[
               const Text('📋 أصناف جديدة قيد الإضافة:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
               const SizedBox(height: 6),
@@ -455,8 +453,6 @@ class AddSaleScreen extends GetView<SalesController> {
               ),
               const Divider(),
             ],
-
-            // السعر النهائي والمجموع
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -472,7 +468,6 @@ class AddSaleScreen extends GetView<SalesController> {
 
   Widget _buildActionButtons() {
     final tableNum = controller.currentTableNumber.value;
-    final hasSavedOrders = controller.currentTableOrders.isNotEmpty;
 
     return Column(
       children: [
@@ -496,7 +491,21 @@ class AddSaleScreen extends GetView<SalesController> {
                   if (controller.cartItems.isEmpty && controller.selectedProductId.value != null) {
                     controller.addToCart();
                   }
-                  await controller.saveCartOrAddToTable(currentUser['id']);
+
+                  if (controller.cartItems.isNotEmpty) {
+                    List<CartItem> itemsToPrint = List.from(controller.cartItems);
+                    double total = controller.orderTotal;
+
+                    // 1. حفظ البيانات في القاعدة
+                    bool success = await controller.saveCartOrAddToTable(currentUser['id']);
+
+                    // 2. 🖨️ طباعة نسخة واحدة فقط للتجهيز/المطبخ عند الحفظ
+                    if (success) {
+                      await _printInvoice(itemsToPrint, total, copyCount: 1, isKitchenCopyOnly: true);
+                    }
+                  } else {
+                    AppSnackbar.warning("لا توجد منتجات للحفظ والطباعة");
+                  }
                 },
                 icon: const Icon(Icons.save, color: Colors.white),
                 label: Text(
@@ -507,7 +516,6 @@ class AddSaleScreen extends GetView<SalesController> {
               ),
             ),
             const SizedBox(width: 8),
-            // زر المطبخ
             if (tableNum != null) ...[
               IconButton(
                 icon: const Icon(Icons.soup_kitchen, color: Colors.orange, size: 30),
@@ -521,7 +529,7 @@ class AddSaleScreen extends GetView<SalesController> {
           ],
         ),
         const SizedBox(height: 12),
-        // 🔥 زر تقفيل الحساب + الطباعة السريعة المباشرة
+        // 🔥 زر تقفيل الحساب + طباعة نسختين (عميل + تجهيز)
         SizedBox(
           width: double.infinity,
           height: 48,
@@ -529,10 +537,8 @@ class AddSaleScreen extends GetView<SalesController> {
             onPressed: controller.isSaving.value
                 ? null
                 : () async {
-              // 1. تجميع المنتجات للطباعة
               List<CartItem> allItemsToPrint = List.from(controller.cartItems);
 
-              // سحب أيمات الترابيزة القديمة وتحويلها لـ CartItem
               for (var o in controller.currentTableOrders) {
                 allItemsToPrint.add(CartItem(
                   productId: o['product_id'] ?? 0,
@@ -552,17 +558,17 @@ class AddSaleScreen extends GetView<SalesController> {
               if (allItemsToPrint.isNotEmpty) {
                 double totalAmount = allItemsToPrint.fold(0.0, (sum, item) => sum + item.total);
 
-                // حفظ أي منتجات جديدة أضيفت
                 if (controller.cartItems.isNotEmpty) {
                   await controller.saveCartOrAddToTable(currentUser['id']);
                 }
 
-                // 2. طباعة الفاتورة النهائية للعميل
-                await _printInvoice(allItemsToPrint, totalAmount);
+                // 🖨️ 2. طباعة نسختين (واحدة للعميل وواحدة للتجهيز)
+                await _printInvoice(allItemsToPrint, totalAmount, copyCount: 2, isKitchenCopyOnly: false);
 
                 // 3. تقفيل الحساب وتفريغ الترابيزة
                 if (tableNum != null) {
-                  await controller.checkoutAndGetTableOrders(tableNum, currentUser['id']);                } else {
+                  await controller.checkoutAndGetTableOrders(tableNum, currentUser['id']);
+                } else {
                   controller.cartItems.clear();
                 }
               } else {
@@ -581,7 +587,13 @@ class AddSaleScreen extends GetView<SalesController> {
     );
   }
 
-  Future<void> _printInvoice(List<CartItem> items, double total) async {
+  // 🖨️ دالة طباعة الفاتورة المرنة (نسخة واحدة عند الحفظ / نسختين عند التقفيل)
+  Future<void> _printInvoice(
+      List<CartItem> items,
+      double total, {
+        required int copyCount,
+        bool isKitchenCopyOnly = false,
+      }) async {
     final pdf = pw.Document();
 
     final fontData = await rootBundle.load("assets/fonts/Cairo-Regular.ttf");
@@ -600,67 +612,83 @@ class AddSaleScreen extends GetView<SalesController> {
       marginRight: 0,
     );
 
-    final tableHeader = controller.currentTableNumber.value != null
+    final baseTableHeader = controller.currentTableNumber.value != null
         ? 'طلب ترابيزة: ${controller.currentTableNumber.value}'
         : 'فاتورة مبيعات (سفري)';
 
-    pdf.addPage(
-      pw.Page(
-        pageFormat: customRoll80,
-        build: (context) => pw.Directionality(
-          textDirection: pw.TextDirection.rtl,
-          child: pw.Padding(
-            padding: const pw.EdgeInsets.symmetric(horizontal: 6 * PdfPageFormat.mm, vertical: 2 * PdfPageFormat.mm),
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Center(
-                  child: pw.Text(
-                    'محل بن الشيخ الاصلي المحطه',
-                    style: pw.TextStyle(font: arabicFont, fontSize: 14, fontWeight: pw.FontWeight.bold),
-                  ),
-                ),
-                pw.SizedBox(height: 5),
-                pw.Center(
-                  child: pw.Text(
-                    tableHeader,
-                    style: pw.TextStyle(font: arabicFont, fontSize: 13, fontWeight: pw.FontWeight.bold),
-                  ),
-                ),
-                pw.SizedBox(height: 10),
-                pw.Text('التاريخ: $dateStr', style: pw.TextStyle(font: arabicFont, fontSize: 10)),
-                pw.Text('الوقت: $timeStr', style: pw.TextStyle(font: arabicFont, fontSize: 10)),
-                pw.Text('الكاشير: ${currentUser['name']}', style: pw.TextStyle(font: arabicFont, fontSize: 10)),
-                pw.Divider(thickness: 1),
-                ...items.map((item) {
-                  final description = _formatItemDescription(item);
-                  return pw.Padding(
-                    padding: const pw.EdgeInsets.symmetric(vertical: 3),
+    // إضافة الأوراق بحسب عدد النسخ المطلوب
+    for (int copy = 0; copy < copyCount; copy++) {
+      String copyLabel = "";
+      if (isKitchenCopyOnly) {
+        copyLabel = "(نسخة التجهيز / المطبخ)";
+      } else {
+        copyLabel = (copy == 0) ? "(نسخة العميل)" : "(نسخة التجهيز / المطبخ)";
+      }
+
+      pdf.addPage(
+        pw.Page(
+          pageFormat: customRoll80,
+          build: (context) => pw.Directionality(
+            textDirection: pw.TextDirection.rtl,
+            child: pw.Padding(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 6 * PdfPageFormat.mm, vertical: 2 * PdfPageFormat.mm),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Center(
                     child: pw.Text(
-                      description,
-                      style: pw.TextStyle(font: arabicFont, fontSize: 10, fontWeight: pw.FontWeight.bold),
+                      'كافيه كراميل  ',
+                      style: pw.TextStyle(font: arabicFont, fontSize: 14, fontWeight: pw.FontWeight.bold),
                     ),
-                  );
-                }),
-                pw.Divider(thickness: 1),
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text('السعر النهائي والإجمالي:', style: pw.TextStyle(font: arabicFont, fontWeight: pw.FontWeight.bold, fontSize: 11)),
-                    pw.Text('${total.toStringAsFixed(0)} ج.م', style: pw.TextStyle(font: arabicFont, fontWeight: pw.FontWeight.bold, fontSize: 14)),
-                  ],
-                ),
-                pw.SizedBox(height: 15),
-                pw.Center(
-                  child: pw.Text('شكراً لزيارتكم', style: pw.TextStyle(font: arabicFont, fontSize: 11)),
-                ),
-                pw.SizedBox(height: 25 * PdfPageFormat.mm),
-              ],
+                  ),
+                  pw.SizedBox(height: 3),
+                  pw.Center(
+                    child: pw.Text(
+                      baseTableHeader,
+                      style: pw.TextStyle(font: arabicFont, fontSize: 13, fontWeight: pw.FontWeight.bold),
+                    ),
+                  ),
+                  pw.Center(
+                    child: pw.Text(
+                      copyLabel,
+                      style: pw.TextStyle(font: arabicFont, fontSize: 11, fontWeight: pw.FontWeight.bold),
+                    ),
+                  ),
+                  pw.SizedBox(height: 8),
+                  pw.Text('التاريخ: $dateStr', style: pw.TextStyle(font: arabicFont, fontSize: 10)),
+                  pw.Text('الوقت: $timeStr', style: pw.TextStyle(font: arabicFont, fontSize: 10)),
+                  pw.Text('الكاشير: ${currentUser['name']}', style: pw.TextStyle(font: arabicFont, fontSize: 10)),
+                  pw.Divider(thickness: 1),
+                  ...items.map((item) {
+                    final description = _formatItemDescription(item);
+                    return pw.Padding(
+                      padding: const pw.EdgeInsets.symmetric(vertical: 3),
+                      child: pw.Text(
+                        description,
+                        style: pw.TextStyle(font: arabicFont, fontSize: 10, fontWeight: pw.FontWeight.bold),
+                      ),
+                    );
+                  }),
+                  pw.Divider(thickness: 1),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text('السعر النهائي والإجمالي:', style: pw.TextStyle(font: arabicFont, fontWeight: pw.FontWeight.bold, fontSize: 11)),
+                      pw.Text('${total.toStringAsFixed(0)} ج.م', style: pw.TextStyle(font: arabicFont, fontWeight: pw.FontWeight.bold, fontSize: 14)),
+                    ],
+                  ),
+                  pw.SizedBox(height: 15),
+                  pw.Center(
+                    child: pw.Text('شكراً لزيارتكم', style: pw.TextStyle(font: arabicFont, fontSize: 11)),
+                  ),
+                  pw.SizedBox(height: 25 * PdfPageFormat.mm),
+                ],
+              ),
             ),
           ),
         ),
-      ),
-    );
+      );
+    }
 
     try {
       await Printing.layoutPdf(
@@ -668,7 +696,7 @@ class AddSaleScreen extends GetView<SalesController> {
         name: 'receipt_${DateTime.now().millisecondsSinceEpoch}',
         format: customRoll80,
       );
-      AppSnackbar.success("تمت الطباعة وتقفيل الحساب بنجاح");
+      AppSnackbar.success("تمت الطباعة بنجاح");
     } catch (e) {
       AppSnackbar.error("تأكد من توصيل الطابعة الحرارية وتعيينها كافتراضية");
     }
