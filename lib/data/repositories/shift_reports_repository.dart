@@ -34,4 +34,20 @@ class ShiftReportRepository {
       whereArgs: [saleId],
     );
   }
+
+  // 📌 جلب ملخص تجميعي لمبيعات كل صنف في الشيفت (للتقرير الحراري)
+  Future<List<Map<String, dynamic>>> getShiftProductsSummary(int shiftId) async {
+    final db = await dbHelper.database;
+    return await db.rawQuery('''
+    SELECT 
+      p.name AS product_name,
+      SUM(s.quantity) AS total_quantity,
+      SUM(s.quantity * s.unit_price) AS total_sales
+    FROM sales s
+    JOIN products p ON s.product_id = p.id
+    WHERE s.shift_id = ? AND s.status = 'active'
+    GROUP BY s.product_id, p.name
+    ORDER BY total_quantity DESC
+  ''', [shiftId]);
+  }
 }

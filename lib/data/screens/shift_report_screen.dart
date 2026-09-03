@@ -11,9 +11,6 @@ class ShiftReportScreen extends GetView<ShiftReportController> {
 
   @override
   Widget build(BuildContext context) {
-    // تحديد إذا كان المستخدم أدمن أم لا (محتفظين بيها للتحكمات المستقبلية إن لزم)
-    bool isAdmin = currentUser['role'] == 'admin';
-
     return Scaffold(
       backgroundColor: const Color(0xFFF8F5F2),
       appBar: AppBar(
@@ -23,8 +20,17 @@ class ShiftReportScreen extends GetView<ShiftReportController> {
         centerTitle: true,
         elevation: 0,
         actions: [
+          // 🖨️ زر طباعة تقرير تقفيل الوردية على الطابعة الـ 80mm
+          IconButton(
+            icon: const Icon(Icons.print_rounded, size: 26),
+            tooltip: 'طباعة تقرير الوردية 80mm',
+            onPressed: () {
+              controller.printShiftThermalReport(currentUser['name'] ?? 'الكاشير');
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.sync_rounded),
+            tooltip: 'تحديث الورديات',
             onPressed: () => controller.loadAllShifts(),
           ),
         ],
@@ -135,7 +141,6 @@ class ShiftReportScreen extends GetView<ShiftReportController> {
     );
   }
 
-  // شريط الورديات الأفقي الذكي مع دعم التمرير بالماوس والتاتش والـ Trackpad بالكامل
   Widget _buildShiftsHeader() {
     return Container(
       height: 82,
@@ -304,7 +309,6 @@ class ShiftReportScreen extends GetView<ShiftReportController> {
     final quantity = (sale['quantity'] as num?)?.toDouble() ?? 0.0;
     final totalAmount = (sale['total_amount'] as num?)?.toDouble() ?? 0.0;
 
-    // ✨ جلب الوحدة الحقيقية المخزنة مباشرة في المبيعات بدون شروط وتخمينات Hardcoded قد تتسبب بـ Conflict
     String unitType = (sale['unit_type'] ?? sale['unit'] ?? sale['unit_name'] ?? 'قطعة').toString().trim();
     if (unitType.isEmpty) unitType = 'قطعة';
 

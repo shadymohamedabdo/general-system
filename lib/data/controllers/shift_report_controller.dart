@@ -1,5 +1,11 @@
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+
 import '../constants/constants.dart';
 import '../repositories/reports_repository.dart';
 import '../repositories/expenses_repository.dart';
@@ -205,5 +211,162 @@ class ShiftReportController extends GetxController {
     } catch (e) {
       AppSnackbar.error("فشل تحديث الحالة");
     }
+  }
+
+  // 🖨️ دالة طباعة تقرير إغلاق الوردية الحراري (80mm)
+  Future<void> printShiftThermalReport(String currentUserName) async {
+    if (selectedShiftId.value == null) {
+      AppSnackbar.warning("يرجى اختيار وردية أولاً");
+      return;
+    }
+
+    try {
+      final shiftId = selectedShiftId.value!;
+      final db = await dbHelper.database;
+
+      // 1. جلب نوع الشيفت (صباحي / مسائي)
+      final shiftData = await db.query('shifts', where: 'id = ?', whereArgs: [shiftId]);
+      String shiftTypeStr = "صباحي";
+      if (shiftData.isNotEmpty) {
+        shiftTypeStr = shiftData.first['type'] == 'morning' ? "صباحي ☀️" : "مسائي 🌙";
+      }
+
+      // 2. جلب مبيعات الأصناف التجميعية للشيفت
+      final productsSummary = await db.rawQuery('''
+        SELECT 
+          p.name AS product_name,
+          SUM(s.quantity) AS total_quantity,
+          SUM(s.quantity * s.unit_price) AS total_sales
+        FROM sales s
+        JOIN products p ON s.product_id = p.id
+        WHERE s.shift_id = ? AND s.status = 'active'
+        GROUP BY s.product_id, p.name
+        ORDER BY total_quantity DESC
+      ''', [shiftId]);
+
+      // 3. تجهيز الخط ومقاس الورق 80 مم
+      final fontData = await rootBundle.load("assets/fonts/Cairo-Regular.ttf");
+      final arabicFont = pw.Font.ttf(fontData);
+
+      final now = DateTime.now().toLocal();
+      final dateStr = DateFormat('yyyy-MM-dd').format(now);
+      final timeStr = DateFormat('HH:mm').format(now);
+
+      const customRoll80 = PdfPageFormat(
+        72 * PdfPageFormat.mm,
+        double.infinity,
+        marginTop: 0,
+        marginBottom: 0,
+        marginLeft: 0,
+        marginRight: 0,
+      );
+
+      final pdf = pw.Document();
+
+      pdf.addPage(
+        pw.Page(
+          pageFormat: customRoll80,
+          build: (context) => pw.Directionality(
+            textDirection: pw.TextDirection.rtl,
+            child: pw.Padding(
+              padding: const pw.EdgeInsets.symmetric(
+                horizontal: 6 * PdfPageFormat.mm,
+                vertical: 4 * PdfPageFormat.mm,
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Center(
+                    child: pw.Text(
+                      'كافيه كراميل',
+                      style: pw.TextStyle(font: arabicFont, fontSize: 15, fontWeight: pw.FontWeight.bold),
+                    ),
+                  ),
+                  pw.SizedBox(height: 3),
+                  pw.Center(
+                    child: pw.Text(
+                      'تقرير إغلاق الوردية ($shiftTypeStr)',
+                      style: pw.TextStyle(font: arabicFont, fontSize: 13, fontWeight: pw.FontWeight.bold),
+                    ),
+                  ),
+                  pw.SizedBox(height: 6),
+                  pw.Text('التاريخ: $dateStr  |  الوقت: $timeStr', style: pw.TextStyle(font: arabicFont, fontSize: 9)),
+                  pw.Text('المسؤول: $currentUserName', style: pw.TextStyle(font: arabicFont, fontSize: 9)),
+                  pw.Divider(thickness: 1),
+
+                  // 💵 الملخص المالي
+                  pw.Text('الملخص المالي:', style: pw.TextStyle(font: arabicFont, fontWeight: pw.FontWeight.bold, fontSize: 11)),
+                  pw.SizedBox(height: 4),
+                  _buildPdfRow('إجمالي المبيعات:', '${totalSum.value.toStringAsFixed(2)} ج.م', arabicFont),
+                  _buildPdfRow('المصروفات النقدية:', '${totalExpensesSum.value.toStringAsFixed(2)} ج.م', arabicFont),
+                  _buildPdfRow('الصافي بالصندوق:', '${finalNetCash.value.toStringAsFixed(2)} ج.م', arabicFont, isBold: true),
+                  _buildPdfRow('عدد الطلبات:', '${ordersCount.value} طلب', arabicFont),
+
+                  pw.Divider(thickness: 1),
+
+                  // 📦 تفاصيل مبيعات الأصناف التجميعية
+                  pw.Text('تفاصيل مبيعات الأصناف:', style: pw.TextStyle(font: arabicFont, fontWeight: pw.FontWeight.bold, fontSize: 11)),
+                  pw.SizedBox(height: 6),
+
+                  if (productsSummary.isEmpty)
+                    pw.Text('لا توجد مبيعات في هذا الشيفت', style: pw.TextStyle(font: arabicFont, fontSize: 9))
+                  else
+                    ...productsSummary.map((item) {
+                      final name = (item['product_name'] ?? '').toString().replaceAll('بن', '').trim();
+                      final qty = (item['total_quantity'] as num).toDouble();
+                      final qtyStr = qty % 1 == 0 ? qty.toInt().toString() : qty.toStringAsFixed(1);
+                      final amount = (item['total_sales'] as num).toDouble().toStringAsFixed(0);
+
+                      return pw.Padding(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 2),
+                        child: pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text('$qtyStr $name', style: pw.TextStyle(font: arabicFont, fontSize: 10)),
+                            pw.Text('$amount ج', style: pw.TextStyle(font: arabicFont, fontSize: 10, fontWeight: pw.FontWeight.bold)),
+                          ],
+                        ),
+                      );
+                    }),
+
+                  pw.Divider(thickness: 1),
+                  pw.SizedBox(height: 6),
+                  pw.Center(
+                    child: pw.Text('نهاية تقرير الوردية', style: pw.TextStyle(font: arabicFont, fontSize: 9)),
+                  ),
+                  pw.SizedBox(height: 25 * PdfPageFormat.mm),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await Printing.layoutPdf(
+        onLayout: (format) async => pdf.save(),
+        name: 'shift_z_report_$shiftId',
+        format: customRoll80,
+      );
+
+      AppSnackbar.success("تم إرسال تقرير الوردية للطابعة بنجاح");
+    } catch (e) {
+      AppSnackbar.error("حدث خطأ أثناء طباعة تقرير الوردية: $e");
+    }
+  }
+
+  pw.Widget _buildPdfRow(String title, String value, pw.Font font, {bool isBold = false}) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 2),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(title, style: pw.TextStyle(font: font, fontSize: 10)),
+          pw.Text(
+            value,
+            style: pw.TextStyle(font: font, fontSize: 10, fontWeight: isBold ? pw.FontWeight.bold : pw.FontWeight.normal),
+          ),
+        ],
+      ),
+    );
   }
 }
