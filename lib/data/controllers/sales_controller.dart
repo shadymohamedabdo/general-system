@@ -18,6 +18,7 @@ class SalesController extends GetxController {
   // 🔹 Text Controllers
   final amountCtrl = TextEditingController();
   final qtyCtrl = TextEditingController();
+  final notesCtrl = TextEditingController(); // 👈 تحكم ملاحظات السكر والنكهة
 
   // 🔹 المنتجات والسلة
   var products = <Product>[].obs;
@@ -67,6 +68,7 @@ class SalesController extends GetxController {
   void onClose() {
     amountCtrl.dispose();
     qtyCtrl.dispose();
+    notesCtrl.dispose(); // 👈 التخلص من الكنترولر عند الإغلاق
     super.onClose();
   }
 
@@ -209,10 +211,15 @@ class SalesController extends GetxController {
     if (currentTableNumber.value != null) {
       try {
         for (var item in cartItems) {
+          // دمج الملاحظة مع اسم الصنف في حالة الترابيزات لضمان حفظها وظهورها للتحضير
+          final displayName = (item.notes != null && item.notes!.isNotEmpty)
+              ? "${item.productName} (${item.notes})"
+              : item.productName;
+
           await dbHelper.addOrUpdateTableOrderItem(
             tableNumber: currentTableNumber.value!,
             productId: item.productId,
-            productName: item.productName,
+            productName: displayName,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
           );
@@ -297,6 +304,7 @@ class SalesController extends GetxController {
     computedWeight.value = 0.0;
     amountCtrl.clear();
     qtyCtrl.clear();
+    notesCtrl.clear(); // 👈 تفريغ الملاحظات عند تغيير الفئة
 
     if (val == 'بن') {
       unitLabel.value = "كيلو";
@@ -312,6 +320,7 @@ class SalesController extends GetxController {
     selectedProductId.value = id;
     amount.value = null;
     amountCtrl.clear();
+    notesCtrl.clear(); // 👈 تفريغ الملاحظات عند اختيار منتج جديد
 
     if (id != null) {
       final p = products.firstWhere((p) => p.id == id);
@@ -355,6 +364,8 @@ class SalesController extends GetxController {
       return;
     }
 
+    final currentNote = notesCtrl.text.trim();
+
     cartItems.add(CartItem(
       productId: product.id!,
       productName: product.name,
@@ -362,6 +373,7 @@ class SalesController extends GetxController {
       unitPrice: unitPrice.value,
       total: currentTotal,
       category: product.category,
+      notes: currentNote.isNotEmpty ? currentNote : null, // 👈 تمرير الملاحظة للسلة
     ));
 
     resetFields();
@@ -461,6 +473,7 @@ class SalesController extends GetxController {
     computedWeight.value = 0.0;
     amountCtrl.clear();
     qtyCtrl.clear();
+    notesCtrl.clear(); // 👈 تصفير حقل الملاحظات والنكهة
     quantity.value = (selectedCategory.value == 'بن') ? 0.125 : 1.0;
   }
 }

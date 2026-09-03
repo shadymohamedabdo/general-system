@@ -5,6 +5,8 @@ class CartItem {
   final double unitPrice;
   final double total;
   final String category;
+  final String? notes; // 👈 حقل الملاحظات والنكهة
+
   CartItem({
     required this.productId,
     required this.productName,
@@ -12,5 +14,6 @@ class CartItem {
     required this.unitPrice,
     required this.total,
     required this.category,
+    this.notes,
   });
 }

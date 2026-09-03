@@ -70,6 +70,8 @@ class AddSaleScreen extends GetView<SalesController> {
                           _buildProductDropdown(),
                           const SizedBox(height: 16),
                           _buildQuantitySection(),
+                          const SizedBox(height: 12),
+                          _buildNotesSection(), // 👈 قسم ملاحظات السكر والنكهات السريعة
                           const SizedBox(height: 16),
                           _buildPriceCard(),
                           const SizedBox(height: 16),
@@ -398,6 +400,87 @@ class AddSaleScreen extends GetView<SalesController> {
     );
   }
 
+  // 📝 قسم الملاحظات والنكهات السريعة للمشروبات والآيس كريم
+  Widget _buildNotesSection() {
+    final cat = controller.selectedCategory.value?.trim().toLowerCase() ?? '';
+    final prodName = controller.products
+        .firstWhereOrNull((p) => p.id == controller.selectedProductId.value)
+        ?.name.toLowerCase() ?? '';
+
+    final isDrink = cat.contains('مشروب') || cat.contains('عصير') || cat.contains('بن');
+    final isIceCream = cat.contains('ايس') || prodName.contains('ايس') || prodName.contains('جيلاتي');
+
+    if (!isDrink && !isIceCream) return const SizedBox.shrink();
+
+    final drinkChips = ["سادة", "مظبوط", "زيادة", "مانو", "معلقة", "معلقتين", "بدون سكر"];
+    final iceCreamChips = ["مانجا", "حليب / فانيليا", "ميكس", "شيكولاتة", "فراولة", "لوتس", "أوريو"];
+    final activeChips = isIceCream ? iceCreamChips : drinkChips;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.brown.shade50.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.brown.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(isIceCream ? Icons.icecream_outlined : Icons.coffee_outlined, size: 18, color: Colors.brown.shade800),
+              const SizedBox(width: 6),
+              Text(
+                isIceCream ? "اختر النكهة / الطعم (اختياري):" : "ملاحظة السكر / التحضير (اختياري):",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.brown.shade900),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: activeChips.map((chip) {
+                return Padding(
+                  padding: const EdgeInsets.only(left: 6),
+                  child: ActionChip(
+                    label: Text(chip, style: const TextStyle(fontSize: 12)),
+                    backgroundColor: Colors.white,
+                    side: BorderSide(color: Colors.brown.shade300),
+                    onPressed: () {
+                      if (controller.notesCtrl.text.isEmpty) {
+                        controller.notesCtrl.text = chip;
+                      } else {
+                        controller.notesCtrl.text = "${controller.notesCtrl.text} - $chip";
+                      }
+                    },
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: controller.notesCtrl,
+            decoration: InputDecoration(
+              hintText: isIceCream ? 'مثال: مانجا على شيكولاتة...' : 'اكتب ملاحظة خاصة بالسكر أو التجهيز...',
+              hintStyle: const TextStyle(fontSize: 12, color: Colors.grey),
+              filled: true,
+              fillColor: Colors.white,
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.clear, size: 18),
+                onPressed: () => controller.notesCtrl.clear(),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPriceCard() => Container(
     padding: const EdgeInsets.all(15),
     decoration: BoxDecoration(color: Colors.green[700], borderRadius: BorderRadius.circular(15)),
@@ -466,10 +549,12 @@ class AddSaleScreen extends GetView<SalesController> {
                 itemCount: cartItems.length,
                 itemBuilder: (context, index) {
                   final item = cartItems[index];
+                  final noteText = (item.notes != null && item.notes!.isNotEmpty) ? " (${item.notes})" : "";
+
                   return ListTile(
                     dense: true,
                     contentPadding: EdgeInsets.zero,
-                    title: Text(item.productName),
+                    title: Text("${item.productName}$noteText"),
                     subtitle: Text('${item.quantity.toStringAsFixed(2)} × ${item.unitPrice.toStringAsFixed(2)} ج.م'),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -730,35 +815,37 @@ class AddSaleScreen extends GetView<SalesController> {
     }
   }
 
+  // 📝 صياغة سطر الفاتورة مع دمج الملاحظة المرفقة (سكر / نكهة)
   String _formatItemDescription(CartItem item) {
     final name = item.productName.replaceAll('بن', '').trim();
     final qty = item.quantity;
     final totalStr = item.total.toStringAsFixed(0);
+    final noteSuffix = (item.notes != null && item.notes!.isNotEmpty) ? " (${item.notes})" : "";
 
     if (item.category == 'بن') {
-      if ((qty - 0.125).abs() < 0.005) return "ثمن $name = $totalStr ج";
-      if ((qty - 0.25).abs() < 0.005) return "ربع $name = $totalStr ج";
-      if ((qty - 0.5).abs() < 0.005) return "نصف $name = $totalStr ج";
-      if ((qty - 1.0).abs() < 0.005) return "كيلو $name = $totalStr ج";
+      if ((qty - 0.125).abs() < 0.005) return "ثمن $name$noteSuffix = $totalStr ج";
+      if ((qty - 0.25).abs() < 0.005) return "ربع $name$noteSuffix = $totalStr ج";
+      if ((qty - 0.5).abs() < 0.005) return "نصف $name$noteSuffix = $totalStr ج";
+      if ((qty - 1.0).abs() < 0.005) return "كيلو $name$noteSuffix = $totalStr ج";
 
       if (qty > 1.0) {
         if (qty % 1 == 0) {
-          return "${qty.toInt()} كيلو $name = $totalStr ج";
+          return "${qty.toInt()} كيلو $name$noteSuffix = $totalStr ج";
         }
 
         double fraction = qty - qty.floor();
         if ((fraction - 0.5).abs() < 0.005) {
-          return "${qty.floor()} كيلو ونصف $name = $totalStr ج";
+          return "${qty.floor()} كيلو ونصف $name$noteSuffix = $totalStr ج";
         }
         if ((fraction - 0.25).abs() < 0.005) {
-          return "${qty.floor()} كيلو وربع $name = $totalStr ج";
+          return "${qty.floor()} كيلو وربع $name$noteSuffix = $totalStr ج";
         }
       }
 
-      return "بـ $totalStr ج $name";
+      return "بـ $totalStr ج $name$noteSuffix";
     } else {
       final qtyStr = qty % 1 == 0 ? qty.toInt().toString() : qty.toStringAsFixed(1);
-      return "$qtyStr $name = $totalStr ج";
+      return "$qtyStr $name$noteSuffix = $totalStr ج";
     }
   }
 }

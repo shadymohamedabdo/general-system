@@ -369,4 +369,5 @@ class ShiftReportController extends GetxController {
       ),
     );
   }
+
 }
