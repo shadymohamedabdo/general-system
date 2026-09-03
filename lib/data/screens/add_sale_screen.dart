@@ -141,7 +141,10 @@ class AddSaleScreen extends GetView<SalesController> {
             ],
           ),
           ElevatedButton.icon(
-            onPressed: () => _showTableSelectionDialog(context),
+            onPressed: () {
+              controller.loadBusyTables();
+              _showTableSelectionDialog(context);
+            },
             icon: const Icon(Icons.grid_view_rounded, size: 18, color: Colors.white),
             label: Text(
               controller.currentTableNumber.value == null ? 'تحديد ترابيزة' : 'تغيير الترابيزة',
@@ -205,33 +208,49 @@ class AddSaleScreen extends GetView<SalesController> {
                   itemCount: 30,
                   itemBuilder: (context, index) {
                     final tableNum = index + 1;
-                    final isSelected = controller.currentTableNumber.value == tableNum;
-                    return InkWell(
-                      onTap: () {
-                        controller.selectTable(tableNum);
-                        Get.back();
-                      },
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: isSelected ? Colors.brown : Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: isSelected ? Colors.brown : Colors.grey.shade400,
-                            width: 2,
+
+                    return Obx(() {
+                      final isBusy = controller.busyTableNumbers.contains(tableNum);
+                      final isSelected = controller.currentTableNumber.value == tableNum;
+                      final Color tableColor = isBusy ? Colors.red.shade700 : Colors.green.shade700;
+
+                      return InkWell(
+                        onTap: () {
+                          controller.selectTable(tableNum);
+                          Get.back();
+                        },
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isSelected ? Colors.brown : tableColor.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isSelected ? Colors.brown : tableColor,
+                              width: isSelected ? 2.5 : 1.5,
+                            ),
+                          ),
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.table_restaurant,
+                                  color: isSelected ? Colors.white : tableColor,
+                                  size: 22,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '$tableNum',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: isSelected ? Colors.white : tableColor,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                        child: Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.table_restaurant, color: isSelected ? Colors.white : Colors.brown, size: 22),
-                              const SizedBox(height: 4),
-                              Text('$tableNum', style: TextStyle(fontWeight: FontWeight.bold, color: isSelected ? Colors.white : Colors.black87)),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
+                      );
+                    });
                   },
                 ),
               ),
@@ -420,7 +439,21 @@ class AddSaleScreen extends GetView<SalesController> {
                 contentPadding: EdgeInsets.zero,
                 title: Text(order['product_name'] ?? ''),
                 subtitle: Text('${order['quantity']} × ${order['unit_price']} ج.م'),
-                trailing: Text('${order['total_price']} ج.م', style: const TextStyle(fontWeight: FontWeight.bold)),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('${order['total_price']} ج.م', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                      tooltip: 'حذف من الترابيزة',
+                      onPressed: () {
+                        if (order['id'] != null) {
+                          controller.removeSavedTableOrderItem(order['id'], tableNum);
+                        }
+                      },
+                    ),
+                  ],
+                ),
               )),
               const Divider(),
             ],
@@ -496,11 +529,10 @@ class AddSaleScreen extends GetView<SalesController> {
                     List<CartItem> itemsToPrint = List.from(controller.cartItems);
                     double total = controller.orderTotal;
 
-                    // 1. حفظ البيانات في القاعدة
                     bool success = await controller.saveCartOrAddToTable(currentUser['id']);
 
-                    // 2. 🖨️ طباعة نسخة واحدة فقط للتجهيز/المطبخ عند الحفظ
                     if (success) {
+                      await controller.loadBusyTables();
                       await _printInvoice(itemsToPrint, total, copyCount: 1, isKitchenCopyOnly: true);
                     }
                   } else {
@@ -529,7 +561,6 @@ class AddSaleScreen extends GetView<SalesController> {
           ],
         ),
         const SizedBox(height: 12),
-        // 🔥 زر تقفيل الحساب + طباعة نسختين (عميل + تجهيز)
         SizedBox(
           width: double.infinity,
           height: 48,
@@ -562,12 +593,11 @@ class AddSaleScreen extends GetView<SalesController> {
                   await controller.saveCartOrAddToTable(currentUser['id']);
                 }
 
-                // 🖨️ 2. طباعة نسختين (واحدة للعميل وواحدة للتجهيز)
                 await _printInvoice(allItemsToPrint, totalAmount, copyCount: 2, isKitchenCopyOnly: false);
 
-                // 3. تقفيل الحساب وتفريغ الترابيزة
                 if (tableNum != null) {
                   await controller.checkoutAndGetTableOrders(tableNum, currentUser['id']);
+                  await controller.loadBusyTables();
                 } else {
                   controller.cartItems.clear();
                 }
@@ -587,7 +617,6 @@ class AddSaleScreen extends GetView<SalesController> {
     );
   }
 
-  // 🖨️ دالة طباعة الفاتورة المرنة (نسخة واحدة عند الحفظ / نسختين عند التقفيل)
   Future<void> _printInvoice(
       List<CartItem> items,
       double total, {
@@ -616,7 +645,6 @@ class AddSaleScreen extends GetView<SalesController> {
         ? 'طلب ترابيزة: ${controller.currentTableNumber.value}'
         : 'فاتورة مبيعات (سفري)';
 
-    // إضافة الأوراق بحسب عدد النسخ المطلوب
     for (int copy = 0; copy < copyCount; copy++) {
       String copyLabel = "";
       if (isKitchenCopyOnly) {
@@ -637,7 +665,7 @@ class AddSaleScreen extends GetView<SalesController> {
                 children: [
                   pw.Center(
                     child: pw.Text(
-                      'كافيه كراميل  ',
+                      'كافيه كراميل',
                       style: pw.TextStyle(font: arabicFont, fontSize: 14, fontWeight: pw.FontWeight.bold),
                     ),
                   ),
@@ -729,9 +757,8 @@ class AddSaleScreen extends GetView<SalesController> {
 
       return "بـ $totalStr ج $name";
     } else {
-      final unit = item.category == 'مشروب' ? 'كوب' : 'قطعة';
       final qtyStr = qty % 1 == 0 ? qty.toInt().toString() : qty.toStringAsFixed(1);
-      return "$qtyStr $unit $name = $totalStr ج";
+      return "$qtyStr $name = $totalStr ج";
     }
   }
 }

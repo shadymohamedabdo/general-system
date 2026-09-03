@@ -48,10 +48,16 @@ class SalesController extends GetxController {
 
   var categories = <String>[].obs;
 
+  // 🔹 الترابيزات المشغولة والطلبات النشطة
+  var busyTableNumbers = <int>{}.obs;
+  var currentTableNumber = RxnInt();
+  var currentTableOrders = <Map<String, dynamic>>[].obs;
+
   @override
   void onInit() {
     super.onInit();
     loadProducts();
+    loadBusyTables();
 
     // فلترة المنتجات فوراً عند البحث
     debounce(searchQuery, (_) => _filterAvailableProducts(), time: const Duration(milliseconds: 300));
@@ -62,6 +68,31 @@ class SalesController extends GetxController {
     amountCtrl.dispose();
     qtyCtrl.dispose();
     super.onClose();
+  }
+
+  // ================= جلب الترابيزات المشغولة =================
+  Future<void> loadBusyTables() async {
+    try {
+      final db = await dbHelper.database;
+      final result = await db.rawQuery('SELECT DISTINCT table_number FROM table_orders');
+      final busyList = result.map((row) => row['table_number'] as int).toSet();
+      busyTableNumbers.assignAll(busyList);
+    } catch (e) {
+      debugPrint("خطأ في جلب الترابيزات المشغولة: $e");
+    }
+  }
+
+  // ================= حذف عنصر محفوظ على الترابيزة =================
+  Future<void> removeSavedTableOrderItem(int orderId, int tableNum) async {
+    try {
+      final db = await dbHelper.database;
+      await db.delete('table_orders', where: 'id = ?', whereArgs: [orderId]);
+      await loadTableOrders(tableNum);
+      await loadBusyTables();
+      AppSnackbar.success("تم حذف الصنف من الترابيزة بنجاح");
+    } catch (e) {
+      AppSnackbar.error("خطأ أثناء حذف الصنف: $e");
+    }
   }
 
   // ================= تحميل المنتجات =================
@@ -75,7 +106,6 @@ class SalesController extends GetxController {
         result.map((e) => Product.fromMap(e)).toList(),
       );
 
-      // 🔑 استخراج جميع الفئات المتاحة من المنتجات بدون تكرار
       final uniqueCategories = products
           .map((p) => p.category.trim())
           .where((c) => c.isNotEmpty)
@@ -84,10 +114,8 @@ class SalesController extends GetxController {
 
       categories.assignAll(uniqueCategories);
 
-      // 🔑 تحديث حساب الأرصدة وتطبيق الفلترة
       await _loadRemainingBalances();
       _filterAvailableProducts();
-
     } catch (e) {
       AppSnackbar.error("خطأ في تحميل المنتجات: $e");
     } finally {
@@ -132,9 +160,8 @@ class SalesController extends GetxController {
         double totalPurchased = purchasedQuantityMap[cleanProductName] ?? 0.0;
         double totalSold = soldQuantityMap[product.id] ?? 0.0;
 
-        // 🔑 إن لم يتم تحديد رصيد أولي ولم يدخل الصنف في المشتريات، يُعامل كـ "رصيد مفتوح"
         if (product.initialStock == 0 && !hasPurchases) {
-          productRemainingMap[product.id!] = null; // null تعني رصيد مفتوح
+          productRemainingMap[product.id!] = null;
         } else {
           double totalStockIn = product.initialStock + totalPurchased;
           double remaining = totalStockIn - totalSold;
@@ -153,7 +180,6 @@ class SalesController extends GetxController {
         final pCategory = p.category.trim().toLowerCase();
         final selCategory = selectedCategory.value?.trim().toLowerCase();
 
-        // مطابقة الفئة بشكل مرن
         bool matchesCategory = false;
         if (selCategory == null || selCategory.isEmpty) {
           matchesCategory = true;
@@ -177,9 +203,6 @@ class SalesController extends GetxController {
   }
 
   // ================= إدارات الترابيزات والتيك أواي =================
-  var currentTableNumber = RxnInt();
-  var currentTableOrders = <Map<String, dynamic>>[].obs;
-
   Future<bool> saveCartOrAddToTable(int userId) async {
     if (cartItems.isEmpty) return false;
 
@@ -194,6 +217,9 @@ class SalesController extends GetxController {
             unitPrice: item.unitPrice,
           );
         }
+        await loadTableOrders(currentTableNumber.value!);
+        await loadBusyTables();
+
         cartItems.clear();
         resetFields();
         AppSnackbar.success("تمت إضافة الطلبات للترابيزة ${currentTableNumber.value}");
@@ -247,6 +273,7 @@ class SalesController extends GetxController {
     currentTableNumber.value = null;
     cartItems.clear();
 
+    await loadBusyTables();
     await loadProducts();
     DatabaseHelper.notifySalesChanged();
 
@@ -257,6 +284,7 @@ class SalesController extends GetxController {
     await dbHelper.clearTableSession(tableNum);
     currentTableOrders.clear();
     currentTableNumber.value = null;
+    await loadBusyTables();
     AppSnackbar.success("تم تقفيل حساب الترابيزة $tableNum بنجاح");
   }
 
@@ -280,7 +308,6 @@ class SalesController extends GetxController {
     _filterAvailableProducts();
   }
 
-  // 🔑 تم التعديل: السماح باختيار المنتج ذو الرصيد المفتوح دون إظهار خطأ
   Future<void> updateProduct(int? id) async {
     selectedProductId.value = id;
     amount.value = null;
@@ -313,7 +340,6 @@ class SalesController extends GetxController {
   double get orderTotal => cartItems.fold(0.0, (sum, item) => sum + item.total);
 
   // ================= السلة (Cart) =================
-  // 🔑 تم التعديل: التحقق فقط للأصناف التي لها مخزون محدد (remaining != null)
   void addToCart() {
     if (selectedProductId.value == null) {
       AppSnackbar.warning("برجاء اختيار المنتج أولاً");
@@ -347,7 +373,6 @@ class SalesController extends GetxController {
   }
 
   // ================= حفظ المنتج الفردي =================
-  // 🔑 تم التعديل: دعم الرصيد المفتوح والمحدد بدون خطأ
   Future<bool> saveSingleProduct(int userId) async {
     if (!formKey.currentState!.validate()) return false;
     if (selectedProductId.value == null) {
